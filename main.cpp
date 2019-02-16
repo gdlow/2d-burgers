@@ -4,10 +4,11 @@
 #include "Burgers.h"
 
 int main(int argc, char* argv[]) {
-
-    // Call code to initialise the problem here;
     Model m(argc, argv);
     Burgers b(m);
+
+    // Call code to initialise the problem here;
+    m.PrintParameters();
 
     typedef std::chrono::high_resolution_clock hrc;
     typedef std::chrono::milliseconds ms;
