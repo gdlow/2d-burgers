@@ -5,16 +5,17 @@
 
 int main(int argc, char* argv[]) {
 
+    // Call code to initialise the problem here;
     Model m(argc, argv);
     Burgers b(m);
-
-    // Call code to initialise the problem here; include calling isValid from main
 
     typedef std::chrono::high_resolution_clock hrc;
     typedef std::chrono::milliseconds ms;
     hrc::time_point start = hrc::now();
 
     // Call code to perform time integration here
+    b.SetIntegratedVelocity();
+    b.WriteVelocityFile();
 
     hrc::time_point end = hrc::now();
 

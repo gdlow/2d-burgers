@@ -9,11 +9,16 @@ public:
     ~Burgers();
 
     void SetInitialVelocity();
-    double IntegrateVelocity();
+    void SetIntegratedVelocity();
     void WriteVelocityFile();
     double CalculateEnergy();
 private:
-    double ComputeR();
+    double ComputeR(double x, double y);
+
     Model* model;
+    double*** U;
+    double*** V;
+    double** U0;
+    double** V0;
 };
 #endif //CLASS_BURGERS
