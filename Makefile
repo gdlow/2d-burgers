@@ -9,8 +9,15 @@ Burgers.o: Burgers.cpp Burgers.h
 Model.o: Model.cpp Model.h
 	g++ -std=c++11 -Wall -O2 -o Model.o -c Model.cpp
 
+ParseException.o: ParseExcepton.h
+	g++ -std=c++11 -Wall -O2 -o ParseException.o -c ParseException.h	
+
 burgers_exe: main.o Burgers.o Model.o
 	g++ -o burgers_exe main.o Burgers.o Model.o
+
+#invalid argument exception should be thrown
+Test_0: burgers_exe
+	./burgers_exe 0 0 0 1 
 
 Test_1: burgers_exe
 	./burgers_exe 0 0 0 1 10 10 1
