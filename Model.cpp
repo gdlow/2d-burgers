@@ -23,6 +23,8 @@ Model::Model(int argc, char** argv) {
     ValidateParameters();
 }
 
+Model::~Model() {}
+
 /**
  * Parses parameters from command line into program
  * */

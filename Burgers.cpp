@@ -9,6 +9,13 @@ using namespace std;
 Burgers::Burgers(Model &m) {
     model = &m;
 }
+Burgers::~Burgers() {
+    delete[] U;
+    delete[] V;
+    delete[] U0;
+    delete[] V0;
+    delete[] model;
+}
 
 /**
  * Sets initial velocity field in x,y for U0, V0
@@ -136,7 +143,7 @@ void Burgers::WriteVelocityFile() {
 }
 
 double Burgers::CalculateEnergy() {
-
+    return 0.0;
 }
 
 double Burgers::ComputeR(double x, double y) {
