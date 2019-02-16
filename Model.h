@@ -32,12 +32,7 @@ public:
     double GetC()      const { return c; }
 
     // Add any other getters here...
-    double GetU0()      const { return u0; }
-    double GetV0()      const { return v0; }
 
-    // Public Setters
-    void SetU0(double u_value);
-    void SetV0(double v_value);
 private:
     void ParseParameters(int argc, char* argv[]);
     void ValidateParameters();
@@ -48,6 +43,7 @@ private:
     bool help;
 
     // Numerics: Everything here has to be predefined
+
     // ParseParameters:
     double Lx;
     double Ly;
@@ -69,10 +65,6 @@ private:
     double c;
 
     // Add any additional parameters here...
-
-    // Added Numerics
-    double u0;
-    double v0;
 };
 
 #endif //CLASS_MODEL

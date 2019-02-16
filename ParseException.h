@@ -1,13 +1,13 @@
-#include <exception>
 #ifndef PARSEEXCEPTION_H
 #define PARSEEXCEPTION_H
 
+#include <exception>
 // TODO: Parse incorrect arguments into expression
-class ParseException: public std::exception {
+class IllegalArgumentException: public std::exception {
 public:
     virtual const char* what() const throw() {
-        return "Parsing Error occurred: Wrong number of arguments supplied.";
+        return "ERROR: Wrong number of arguments supplied. Expected: 8";
     }
-} parseException;
+} illegalArgumentException;
 
 #endif //PARSEEXCEPTION_H

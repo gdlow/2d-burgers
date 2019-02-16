@@ -1,6 +1,8 @@
 #include <iostream>
+
 #include "Model.h"
 #include "ParseException.h"
+
 /**
  * CPP source file for Model class
  * Constructors, public and private member functions defined here
@@ -14,15 +16,12 @@ using namespace std;
 Model::Model(int argc, char** argv) {
     try {
         ParseParameters(argc, argv);
-        SetNumerics();
-    } catch (ParseException &e) {
+    } catch (IllegalArgumentException &e) {
         cout << e.what() << endl;
     }
+    // validate then SetNumerics
+    ValidateParameters();
 }
-
-/**
- * Public member functions
- * */
 
 /**
  * Parses parameters from command line into program
@@ -36,35 +35,35 @@ void Model::ParseParameters(int argc, char **argv) {
         Lx = atof(argv[5]);
         Ly = atof(argv[6]);
         T = atof(argv[7]);
-        cout << "Parameters have been saved." << endl;
+        cout << "Parameters saved successfully." << endl;
     }
-    else throw parseException;
-}
-
-void Model::SetU0(double u_value) {
-    u0 = u_value;
-}
-
-void Model::SetV0(double v_value) {
-    u0 = v_value;
+    else throw illegalArgumentException;
 }
 
 /**
- * Private member functions
+ * Checks if parameters supplied are valid
  * */
+bool Model::IsValid() {
+    return ax > 0 && ay > 0 && b > 0 && c > 0 && Lx > 0 && Ly > 0 && T > 0;
+}
+
+void Model::ValidateParameters() {
+    if (!IsValid()) cout << "WARN: Parameter values have to be (>0)" << endl;
+    else SetNumerics();
+}
 
 /**
  * Set appropriate values for various members
  * */
 void Model::SetNumerics() {
-    x0 = 0.0;
-    y0 = 0.0;
     Nx = 100;
     Ny = 100;
     Nt = 100;
-    // dx,dy and dt are dependent on L,T; and discretization Nx,Ny,Nt:
-
-    dx = 0.01;
-    dy = 0.01;
-    dt = 0.01;
+    // dx,dy and dt are dependent on L,T and Nx,Ny,Nt:
+    dx = Lx / Nx;
+    dy = Ly / Ny;
+    dt = T / Nt;
+    // x0 and y0 represent the bottom LHS of the matrix:
+    x0 = -Lx/2.0;
+    y0 = -Ly/2.0;
 }
