@@ -5,7 +5,7 @@
 
 class Burgers {
 public:
-    Burgers(const Model &m);
+    Burgers(Model &m);
     ~Burgers();
 
     void SetInitialVelocity();
@@ -13,6 +13,7 @@ public:
     void WriteVelocityFile();
     double CalculateEnergy();
 private:
-    const Model* model;
+    double ComputeR();
+    Model* model;
 };
 #endif //CLASS_BURGERS
