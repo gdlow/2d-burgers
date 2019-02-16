@@ -31,7 +31,7 @@ void Burgers::SetInitialVelocity() {
     U0 = new double*[Ny];
     for (int j = 0; j < Ny; j++) {
         U0[j] = new double[Nx];
-        for (int i = 0; i < Nx; j++) {
+        for (int i = 0; i < Nx; i++) {
             // Assumes x0 and y0 are identifying bottom LHS of matrix
             double y = y0 + j*dy;
             double x = x0 + i*dx;

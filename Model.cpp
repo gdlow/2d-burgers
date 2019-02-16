@@ -59,11 +59,11 @@ void Model::PrintParameters() {
  * Checks if parameters supplied are valid
  * */
 bool Model::IsValid() {
-    return ax > 0 && ay > 0 && b > 0 && c > 0 && Lx > 0 && Ly > 0 && T > 0;
+    return ax >= 0 && ay >= 0 && b >= 0 && c >= 0 && Lx >= 0 && Ly >= 0 && T >= 0;
 }
 
 void Model::ValidateParameters() {
-    if (!IsValid()) cout << "WARN: Parameter values have to be (>0)" << endl;
+    if (!IsValid()) cout << "WARN: Parameter values have to be (>=0)" << endl;
     else SetNumerics();
 }
 
