@@ -10,15 +10,16 @@ int main(int argc, char* argv[]) {
     // Call code to initialise the problem here;
     m.PrintParameters();
 
-    typedef std::chrono::high_resolution_clock hrc;
-    typedef std::chrono::milliseconds ms;
-    hrc::time_point start = hrc::now();
+    // typedef std::chrono::high_resolution_clock hrc;
+    // typedef std::chrono::milliseconds ms;
+    // hrc::time_point start = hrc::now();
 
     // Call code to perform time integration here
+    b.SetInitialVelocity();
     b.SetIntegratedVelocity();
     b.WriteVelocityFile();
 
-    hrc::time_point end = hrc::now();
+    // hrc::time_point end = hrc::now();
 
     // Calculate final energy and write output
 

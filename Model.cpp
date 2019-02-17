@@ -71,9 +71,9 @@ void Model::ValidateParameters() {
  * Set appropriate values for various members
  * */
 void Model::SetNumerics() {
-    Nx = 100;
-    Ny = 100;
-    Nt = 100;
+    Nx = 10;
+    Ny = 10;
+    Nt = 10;
     // dx,dy and dt are dependent on L,T and Nx,Ny,Nt:
     dx = Lx / Nx;
     dy = Ly / Ny;
