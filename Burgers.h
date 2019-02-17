@@ -19,6 +19,5 @@ private:
     double*** U;
     double*** V;
     double** U0;
-    double** V0;
 };
 #endif //CLASS_BURGERS

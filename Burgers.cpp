@@ -1,7 +1,6 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
-
 #include "Burgers.h"
 
 using namespace std;
@@ -10,15 +9,30 @@ Burgers::Burgers(Model &m) {
     model = &m;
 }
 Burgers::~Burgers() {
-    delete[] U;
-    delete[] V;
+    // Get model parameters
+    int Nt = model->GetNt();
+    int Ny = model->GetNy();
+    for (int k = 1; k < Nt; k++) {
+        // U[0] = V[0] = U0 (not dynamically alloc)
+        for (int j = 0; j < Ny; j++) {
+            delete[] U[k][j];
+            delete[] V[k][j];
+        }
+        delete[] U[k];
+        delete[] V[k];
+    }
+    delete[] U; delete[] V;
+    U = 0; V = 0;
+    for (int j = 0; j < Ny; j++) {
+        delete[] U0[j];
+    }
     delete[] U0;
-    delete[] V0;
-    delete[] model;
+    U0 = 0;
+    // model is not dynamically alloc
 }
 
 /**
- * Sets initial velocity field in x,y for U0, V0
+ * Sets initial velocity field in x,y for U0 (V0 = U0)
  * */
 void Burgers::SetInitialVelocity() {
     // Get model parameters
@@ -39,8 +53,6 @@ void Burgers::SetInitialVelocity() {
             U0[j][i] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r-1.0) : 0.0;
         }
     }
-    // V0 = U0;
-    V0 = U0;
 }
 
 /**
@@ -64,7 +76,7 @@ void Burgers::SetIntegratedVelocity() {
     U = new double**[Nt]; V = new double**[Nt];
 
     // Set initial velocity field
-    U[0] = U0; V[0] = V0;
+    U[0] = U0; V[0] = U0;
 
     // Compute velocity field states for k+1 = 1..Nt-1 => k = 0..Nt-2
     for (int k = 0; k < Nt-1; k++) {
