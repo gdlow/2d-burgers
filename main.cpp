@@ -18,6 +18,7 @@ int main(int argc, char* argv[]) {
     b.SetInitialVelocity();
     b.SetIntegratedVelocity();
     b.WriteVelocityFile();
+    b.SetEnergy();
 
     // hrc::time_point end = hrc::now();
 

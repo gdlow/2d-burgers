@@ -11,7 +11,7 @@ public:
     void SetInitialVelocity();
     void SetIntegratedVelocity();
     void WriteVelocityFile();
-    double CalculateEnergy();
+    void SetEnergy();
 private:
     double ComputeR(double x, double y);
 
@@ -19,5 +19,6 @@ private:
     double*** U;
     double*** V;
     double** U0;
+    double* E;
 };
 #endif //CLASS_BURGERS

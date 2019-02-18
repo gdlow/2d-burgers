@@ -12,6 +12,8 @@ Burgers::~Burgers() {
     // Get model parameters
     int Nt = model->GetNt();
     int Ny = model->GetNy();
+
+    // Delete U and V
     for (int k = 1; k < Nt; k++) {
         // U[0] = V[0] = U0 (not dynamically alloc)
         for (int j = 0; j < Ny; j++) {
@@ -22,12 +24,19 @@ Burgers::~Burgers() {
         delete[] V[k];
     }
     delete[] U; delete[] V;
-    U = 0; V = 0;
+    U = nullptr; V = nullptr;
+
+    // Delete U0
     for (int j = 0; j < Ny; j++) {
         delete[] U0[j];
     }
     delete[] U0;
-    U0 = 0;
+    U0 = nullptr;
+
+    // Delete E
+    delete[] E;
+    E = nullptr;
+
     // model is not dynamically alloc
 }
 
@@ -154,8 +163,28 @@ void Burgers::WriteVelocityFile() {
     of.close();
 }
 
-double Burgers::CalculateEnergy() {
-    return 0.0;
+void Burgers::SetEnergy() {
+    // Get Model parameters
+    int Nt = model->GetNt();
+    int Ny = model->GetNy();
+    int Nx = model->GetNx();
+
+    // Calculate Energy
+    E = nullptr;
+    E = new double[Nt];
+    for (int k = 0; k < Nt; k++) {
+        double energy = 0;
+        // Sum Energy Over Domain
+        for (int j = 0; j < Ny; j++) {
+            for (int i = 0; i < Nx; i++) {
+                double USquare = pow(U[k][j][i], 2.0) + pow(V[k][j][i], 2.0);
+                energy += USquare;
+            }
+        }
+        // Prefactor by 1/2
+        energy *= 0.5;
+        E[k] = energy;
+    }
 }
 
 double Burgers::ComputeR(double x, double y) {
