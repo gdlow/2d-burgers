@@ -1,0 +1,3 @@
+/Users/geraldlow/CLionProjects/hpc_coursework/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/geraldlow/CLionProjects/hpc_coursework/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/geraldlow/CLionProjects/hpc_coursework/cmake-build-debug/CMakeFiles/hpc_coursework.dir
