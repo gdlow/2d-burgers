@@ -1,4 +1,4 @@
-default: burgers_exe
+default: compile
 
 main.o: main.cpp
 	g++ -std=c++11 -Wall -O2 -o main.o -c main.cpp
@@ -12,27 +12,27 @@ Model.o: Model.cpp Model.h
 ParseException.o: ParseExcepton.h
 	g++ -std=c++11 -Wall -O2 -o ParseException.o -c ParseException.h	
 
-burgers_exe: main.o Burgers.o Model.o
-	g++ -o burgers_exe main.o Burgers.o Model.o
+compile: main.o Burgers.o Model.o
+	g++ -o compile main.o Burgers.o Model.o
 
 #invalid argument exception should be thrown
-Test_0: burgers_exe
-	./burgers_exe 0 0 0 1 
+Test_0: compile
+	./compile 0 0 0 1 
 
-Test_1: burgers_exe
-	./burgers_exe 0 0 0 1 10 10 1
+diff: compile
+	./compile 0 0 0 1 10 10 1
 
-Test_2: burgers_exe
-	./burgers_exe 1 0 0 0 10 10 1
+advx: compile
+	./compile 1 0 0 0 10 10 1
 
-Test_3: burgers_exe
-	./burgers_exe 0 1 0 0 10 10 1
+advy: compile
+	./compile 0 1 0 0 10 10 1
 
-Test_4: burgers_exe
-	./burgers_exe 1.0 0.5 1.0 0.02 10 10 1
+burg: compile
+	./compile 1.0 0.5 1.0 0.02 10 10 1
 
-all: burgers_exe
+all: compile
 
 .PHONY: clean
 clean:
-	rm -f *.o burgers_exe
+	rm -f *.o compile
