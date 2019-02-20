@@ -13,7 +13,7 @@ ParseException.o: ParseExcepton.h
 	g++ -std=c++11 -Wall -O2 -o ParseException.o -c ParseException.h	
 
 compile: main.o Burgers.o Model.o
-	g++ -o compile main.o Burgers.o Model.o
+	g++ -o compile main.o Burgers.o Model.o -lblas
 
 #invalid argument exception should be thrown
 Test_0: compile
