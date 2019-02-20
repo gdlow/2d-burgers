@@ -16,8 +16,8 @@ private:
     double ComputeR(double x, double y);
 
     Model* model;
-    double*** U;
-    double*** V;
+    double** U;
+    double** V;
     double* U0;
     double* E;
 };

@@ -11,15 +11,10 @@ Burgers::Burgers(Model &m) {
 Burgers::~Burgers() {
     // Get model parameters
     int Nt = model->GetNt();
-    int Ny = model->GetNy();
 
     // Delete U and V
     for (int k = 1; k < Nt; k++) {
         // U[0] = V[0] = U0 (not dynamically alloc)
-        for (int j = 0; j < Ny; j++) {
-            delete[] U[k][j];
-            delete[] V[k][j];
-        }
         delete[] U[k];
         delete[] V[k];
     }
@@ -77,47 +72,6 @@ void Burgers::SetIntegratedVelocity() {
     double b = model->GetB();
     double c = model->GetC();
 
-    // Compute U, V (coupled problem)
-    U = nullptr; V = nullptr;
-    U = new double**[Nt]; V = new double**[Nt];
-
-    // Set initial velocity field
-    U[0] = U0; V[0] = U0;
-
-    // Compute velocity field states for k+1 = 1..Nt-1 => k = 0..Nt-2
-    for (int k = 0; k < Nt-1; k++) {
-        U[k+1] = new double*[Ny]; V[k+1] = new double*[Ny];
-        // Compute velocity field states in (x,y)
-        for (int j = 0; j < Ny; j++) {
-            U[k+1][j] = new double[Nx]; V[k+1][j] = new double[Nx];
-            for (int i = 0; i < Nx; i++) {
-                // Set boundary conditions to == 0
-                if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
-                    U[k+1][j][i] = 0; V[k+1][j][i] = 0;
-                }
-                else {
-                    // Compute differentials using FDS
-                    double dudx = (U[k][j][i] - U[k][j][i-1]) / dx;
-                    double dudy = (U[k][j][i] - U[k][j-1][i]) / dy;
-                    double dudx_2 = (U[k][j][i+1] - 2.0*U[k][j][i] + U[k][j][i-1]) / pow(dx, 2.0);
-                    double dudy_2 = (U[k][j+1][i] - 2.0*U[k][j][i] + U[k][j-1][i]) / pow(dy, 2.0);
-
-                    double dvdx = (V[k][j][i] - V[k][j][i-1]) / dx;
-                    double dvdy = (V[k][j][i] - V[k][j-1][i]) / dy;
-                    double dvdx_2 = (V[k][j][i+1] - 2.0*V[k][j][i] + V[k][j][i-1]) / pow(dx, 2.0);
-                    double dvdy_2 = (V[k][j+1][i] - 2.0*V[k][j][i] + V[k][j-1][i]) / pow(dy, 2.0);
-
-                    // Compute U[k+1][j][i]
-                    double temp_u = c*(dudx_2 + dudy_2) - (ax + b*U[k][j][i])*dudx - (ay + b*V[k][j][i])*dudy;
-                    U[k+1][j][i] = temp_u * dt + U[k][j][i];
-
-                    // Compute V[k+1][j][i]
-                    double temp_v = c*(dvdx_2 + dvdy_2) - (ax + b*U[k][j][i])*dvdx - (ay + b*V[k][j][i])*dvdy;
-                    V[k+1][j][i] = temp_v * dt + V[k][j][i];
-                }
-            }
-        }
-    }
 }
 
 /**
