@@ -14,11 +14,16 @@ public:
     void SetEnergy();
 private:
     double ComputeR(double x, double y);
-
+    double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
+    void SetMatrixCoefficients();
     Model* model;
     double** U;
     double** V;
     double* U0;
     double* E;
+    double* dVel_dx_2_coeffs;
+    double* dVel_dy_2_coeffs;
+    double* dVel_dx_coeffs;
+    double* dVel_dy_coeffs;
 };
 #endif //CLASS_BURGERS
