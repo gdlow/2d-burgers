@@ -78,7 +78,7 @@ void Model::SetNumerics() {
     dx = Lx / Nx;
     dy = Ly / Ny;
     dt = T / Nt;
-    // x0 and y0 represent the bottom LHS of the matrix:
+    // x0 and y0 represent the top LHS of the matrix:
     x0 = -Lx/2.0;
-    y0 = -Ly/2.0;
+    y0 = Ly/2.0;
 }

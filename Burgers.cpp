@@ -27,9 +27,6 @@ Burgers::~Burgers() {
     U = nullptr; V = nullptr;
 
     // Delete U0
-    for (int j = 0; j < Ny; j++) {
-        delete[] U0[j];
-    }
     delete[] U0;
     U0 = nullptr;
 
@@ -51,15 +48,15 @@ void Burgers::SetInitialVelocity() {
 
     // Compute U0;
     U0 = nullptr;
-    U0 = new double*[Ny];
-    for (int j = 0; j < Ny; j++) {
-        U0[j] = new double[Nx];
-        for (int i = 0; i < Nx; i++) {
-            // Assumes x0 and y0 are identifying bottom LHS of matrix
-            double y = y0 + j*dy;
+    U0 = new double[Ny*Nx];
+    for (int i = 0; i < Nx; i++) {
+        for (int j = 0; j < Ny; j++) {
+            // Assumes x0 and y0 are identifying top LHS of matrix
+            double y = y0 - j*dy;
             double x = x0 + i*dx;
             double r = ComputeR(x, y);
-            U0[j][i] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r-1.0) : 0.0;
+            // Store in column-major format
+            U0[i*Ny+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r-1.0) : 0.0;
         }
     }
 }

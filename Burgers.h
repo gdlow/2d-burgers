@@ -18,7 +18,7 @@ private:
     Model* model;
     double*** U;
     double*** V;
-    double** U0;
+    double* U0;
     double* E;
 };
 #endif //CLASS_BURGERS
