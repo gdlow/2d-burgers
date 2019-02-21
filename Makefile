@@ -16,7 +16,7 @@ compile: main.o Burgers.o Model.o Helpers.o
 	g++ -o compile main.o Burgers.o Model.o Helpers.o -lblas
 
 #invalid argument exception should be thrown
-Test_0: compile
+invalidArg: compile
 	./compile 0 0 0 1 
 
 diff: compile

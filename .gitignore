@@ -1,0 +1,6 @@
+# ignore IDE generated makefiles and workspace
+.idea/*
+cmake-build-debug/*
+
+# ignore generated .txt files
+*.txt
