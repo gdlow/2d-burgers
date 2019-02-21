@@ -244,10 +244,10 @@ void Burgers::SetMatrixCoefficients() {
     int Nxr = Nx - 2;
 
     // Generate and set coefficients
-    dVel_dx_2_coeffs = GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr*Nxr);
-    dVel_dy_2_coeffs = GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr*Nyr);
-    dVel_dx_coeffs = GenTrmm(ax/dx, -ax/dx, Nxr*Nxr, true);
-    dVel_dy_coeffs = GenTrmm(ay/dy, -ay/dy, Nyr*Nyr, false);
+    dVel_dx_2_coeffs = GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr); // lgtm
+    dVel_dy_2_coeffs = GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr); // lgtm
+    dVel_dx_coeffs = GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true); //lgtm
+    dVel_dy_coeffs = GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false); //lgtm
 }
 
 double Burgers::ComputeR(double x, double y) {

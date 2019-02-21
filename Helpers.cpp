@@ -42,15 +42,15 @@ double** transpose(double** A, int N, int M) {
  * alpha takes on the leading diagonal
  * beta takes on the banded row above and below
  * */
-double* GenSymm(double alpha, double beta, int N) {
-    double* M = new double[N*N]; // Column-major format (symmetric anyway)
-    for (int i = 0; i < N*N; i++) {
+double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
+    double* M = new double[Nyr*Nxr]; // Column-major format (symmetric anyway)
+    for (int i = 0; i < Nyr*Nxr; i++) {
         M[i] = 0;
     }
-    for (int i = 0; i < N; i++) {
-        if (i>0) M[i*N+(i-1)] = beta;
-        M[i*N+i] = alpha;
-        if (i<N-1) M[i*N+i+1] = beta;
+    for (int i = 0; i < Nxr; i++) {
+        if (i>0) M[i*Nyr+(i-1)] = beta;
+        M[i*Nyr+i] = alpha;
+        if (i<Nxr-1) M[i*Nyr+(i+1)] = beta;
     }
     return M;
 }
@@ -61,15 +61,15 @@ double* GenSymm(double alpha, double beta, int N) {
  * alpha takes on the leading diagonal
  * beta takes on the banded row above (UPPER) or below
  * */
-double* GenTrmm(double alpha, double beta, int N, bool UPPER) {
-    double* M = new double[N*N];
-    for (int i = 0; i < N*N; i++) {
+double* GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER) {
+    double* M = new double[Nyr*Nxr];
+    for (int i = 0; i < Nyr*Nxr; i++) {
         M[i] = 0;
     }
-    for (int i = 0; i < N; i++) {
-        if (UPPER && i>0) M[i*N+(i-1)] = beta;
-        M[i*N+i] = alpha;
-        if (!UPPER && i<N-1) M[i*N+i+1] = beta;
+    for (int i = 0; i < Nxr; i++) {
+        if (UPPER && i>0) M[i*Nyr+(i-1)] = beta;
+        M[i*Nyr+i] = alpha;
+        if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
     }
     return M;
 }
@@ -100,3 +100,4 @@ double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool off
     }
     return M;
 }
+
