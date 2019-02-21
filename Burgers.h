@@ -16,6 +16,8 @@ private:
     double ComputeR(double x, double y);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
+
+    // Burger parameters
     Model* model;
     double** U;
     double** V;

@@ -103,6 +103,16 @@ void Burgers::WriteVelocityFile() {
     int Nx = model->GetNx();
     int dt = model->GetDt();
 
+    // Reduced parameters
+    int Nyr = Ny - 2;
+    int Nxr = Nx - 2;
+
+    // Alloc 2D pointer
+    double** Vel = nullptr;
+    for (int j = 0; j < Nyr; j++) {
+        Vel[j] = new double[Nxr];
+    }
+
     // Write U, V into "data.txt"
     ofstream of;
     of.open("data.txt", ios::out | ios::trunc);
@@ -111,9 +121,16 @@ void Burgers::WriteVelocityFile() {
     of << "U velocity field:" << endl;
     for (int k = 0; k < Nt; k++) {
         of << "t = " << k*dt << ":" << endl;
+
+        wrap(U[k], Nyr, Nxr, Vel);
         for (int j = 0; j < Ny; j++) {
             for (int i = 0; i < Nx; i++) {
-                of << U[k][j][i] << ' ';
+                if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
+                    of << 0 << ' ';
+                }
+                else {
+                    of << Vel[j-1][i-1] << ' ';
+                }
             }
             of << endl;
         }
@@ -122,14 +139,27 @@ void Burgers::WriteVelocityFile() {
     of << "V velocity field:" << endl;
     for (int k = 0; k < Nt; k++) {
         of << "t = " << k*dt << ":" << endl;
+        wrap(V[k], Nyr, Nxr, Vel);
         for (int j = 0; j < Ny; j++) {
             for (int i = 0; i < Nx; i++) {
-                of << V[k][j][i] << ' ';
+                if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
+                    of << 0 << ' ';
+                }
+                else {
+                    of << Vel[j-1][i-1] << ' ';
+                }
             }
             of << endl;
         }
     }
     of.close();
+
+    // Delete 2D temp pointer
+    for (int j = 0; j < Nyr; j++) {
+        delete[] Vel[j];
+    }
+    delete[] Vel;
+    Vel = nullptr;
 }
 
 void Burgers::SetEnergy() {
@@ -138,21 +168,17 @@ void Burgers::SetEnergy() {
     int Ny = model->GetNy();
     int Nx = model->GetNx();
 
+    // Reduced parameters
+    int Nyr = Ny - 2;
+    int Nxr = Nx - 2;
+
     // Calculate Energy
     E = nullptr;
     E = new double[Nt];
     for (int k = 0; k < Nt; k++) {
-        double energy = 0;
-        // Sum Energy Over Domain
-        for (int j = 0; j < Ny; j++) {
-            for (int i = 0; i < Nx; i++) {
-                double USquare = pow(U[k][j][i], 2.0) + pow(V[k][j][i], 2.0);
-                energy += USquare;
-            }
-        }
-        // Prefactor by 1/2
-        energy *= 0.5;
-        E[k] = energy;
+        double ddotU = F77NAME(ddot)(Nyr*Nxr, U[k], 1, U[k], 1);
+        double ddotV = F77NAME(ddot)(Nyr*Nxr, V[k], 1, V[k], 1);
+        E[k] = 0.5 * (ddotU + ddotV);
     }
 }
 
