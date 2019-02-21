@@ -4,16 +4,23 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers.h"
-#include <iostream>
 
 using namespace std;
 
 bool SELECT_U = true;
 bool SELECT_V = false;
 
+/**
+ * Constructor: Accepts a Model instance pointer as input
+ * Sets it as an instance variable
+ * */
 Burgers::Burgers(Model &m) {
     model = &m;
 }
+
+/**
+ * Destructor: Deletes all allocated pointers in the class instance
+ * */
 Burgers::~Burgers() {
     // Get model parameters
     int Nt = model->GetNt();
@@ -187,6 +194,9 @@ void Burgers::SetEnergy() {
     }
 }
 
+/**
+ * Computes and returns next velocity state based on previous inputs
+ * */
 double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     // Get model parameters
     int Ny = model->GetNy();
@@ -260,6 +270,9 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     return NextVel;
 }
 
+/**
+ * Sets matrix coefficients for differentials
+ * */
 void Burgers::SetMatrixCoefficients() {
     // Get model parameters
     int Ny = model->GetNy();
