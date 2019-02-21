@@ -215,6 +215,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
         NextVel[i] *= dt;
         NextVel[i] += Vel[i];
     }
+
     // Delete pointers
     delete[] dVel_dx_2;
     delete[] dVel_dy_2;

@@ -17,12 +17,12 @@ int main(int argc, char* argv[]) {
     // Call code to perform time integration here
     b.SetInitialVelocity();
     b.SetIntegratedVelocity();
-    b.WriteVelocityFile();
-    b.SetEnergy();
 
     // hrc::time_point end = hrc::now();
 
     // Calculate final energy and write output
+    b.SetEnergy();
+    b.WriteVelocityFile();
 
     return 0;
 }

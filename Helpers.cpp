@@ -76,8 +76,7 @@ double* GenTrmm(double alpha, double beta, int N, bool UPPER) {
 
 /**
  * Performs element-wise multiplication of 2 matrices
- * Ui == Vel; Vi == Other
- * Ui is always the one offset
+ * Ui is always the one offset (Must -> Vel)
  * p = prefactor
  * */
 double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool offset_j, double p) {
