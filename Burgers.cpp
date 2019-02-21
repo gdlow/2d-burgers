@@ -4,6 +4,7 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers.h"
+#include <iostream>
 
 using namespace std;
 
@@ -16,6 +17,12 @@ Burgers::Burgers(Model &m) {
 Burgers::~Burgers() {
     // Get model parameters
     int Nt = model->GetNt();
+
+    // Delete matrix coefficients
+    delete[] dVel_dx_2_coeffs;
+    delete[] dVel_dy_2_coeffs;
+    delete[] dVel_dx_coeffs;
+    delete[] dVel_dy_coeffs;
 
     // Delete U and V
     for (int k = 1; k < Nt; k++) {
@@ -56,14 +63,14 @@ void Burgers::SetInitialVelocity() {
     // Compute U0;
     U0 = nullptr;
     U0 = new double[Nyr*Nxr];
-    for (int i = 0; i < Nxr; i++) {
-        for (int j = 0; j < Nyr; j++) {
+    for (int i = 0; i < Nx; i++) {
+        for (int j = 0; j < Ny; j++) {
             // Assumes x0 and y0 are identifying top LHS of matrix
             double y = y0 - j*dy;
             double x = x0 + i*dx;
             double r = ComputeR(x, y);
             // Store in column-major format
-            U0[i*Nyr+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r-1.0) : 0.0;
+            U0[(i-1)*Nyr+(j-1)] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r-1.0) : 0.0;
         }
     }
 }
@@ -101,14 +108,14 @@ void Burgers::WriteVelocityFile() {
     int Nt = model->GetNt();
     int Ny = model->GetNy();
     int Nx = model->GetNx();
-    int dt = model->GetDt();
+    double dt = model->GetDt();
 
     // Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
     // Alloc 2D pointer
-    double** Vel = nullptr;
+    double** Vel = new double*[Nyr];
     for (int j = 0; j < Nyr; j++) {
         Vel[j] = new double[Nxr];
     }
@@ -121,7 +128,6 @@ void Burgers::WriteVelocityFile() {
     of << "U velocity field:" << endl;
     for (int k = 0; k < Nt; k++) {
         of << "t = " << k*dt << ":" << endl;
-
         wrap(U[k], Nyr, Nxr, Vel);
         for (int j = 0; j < Ny; j++) {
             for (int i = 0; i < Nx; i++) {
@@ -159,7 +165,6 @@ void Burgers::WriteVelocityFile() {
         delete[] Vel[j];
     }
     delete[] Vel;
-    Vel = nullptr;
 }
 
 void Burgers::SetEnergy() {
@@ -270,10 +275,10 @@ void Burgers::SetMatrixCoefficients() {
     int Nxr = Nx - 2;
 
     // Generate and set coefficients
-    dVel_dx_2_coeffs = GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr); // lgtm
-    dVel_dy_2_coeffs = GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr); // lgtm
-    dVel_dx_coeffs = GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true); //lgtm
-    dVel_dy_coeffs = GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false); //lgtm
+    dVel_dx_2_coeffs = GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr);
+    dVel_dy_2_coeffs = GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr);
+    dVel_dx_coeffs = GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true);
+    dVel_dy_coeffs = GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false);
 }
 
 double Burgers::ComputeR(double x, double y) {

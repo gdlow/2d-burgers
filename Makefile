@@ -10,16 +10,10 @@ Model.o: Model.cpp Model.h
 	g++ -std=c++11 -Wall -O2 -o Model.o -c Model.cpp
 
 Helpers.o: Helpers.cpp Helpers.h
-	g++ -std=c++11 -Wall -O2 -o Helpers.o -c Helpers.cpp
+	g++ -std=c++11 -Wall -O2 -o Helpers.o -c Helpers.cpp	
 
-ParseException.o: ParseExcepton.h
-	g++ -std=c++11 -Wall -O2 -o ParseException.o -c ParseException.h
-
-BLAS_Wrapper.o: BLAS_Wrapper.h
-	g++ -std=c++11 -Wall -O2 -o BLAS_Wrapper.o -c BLAS_Wrapper.h		
-
-compile: main.o Burgers.o Model.o Helpers.o ParseException.o BLAS_Wrapper.o
-	g++ -o compile main.o Burgers.o Model.o Helpers.o ParseException.o BLAS_Wrapper.o -lblas
+compile: main.o Burgers.o Model.o Helpers.o
+	g++ -o compile main.o Burgers.o Model.o Helpers.o -lblas
 
 #invalid argument exception should be thrown
 Test_0: compile

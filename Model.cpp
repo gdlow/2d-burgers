@@ -71,13 +71,13 @@ void Model::ValidateParameters() {
  * Set appropriate values for various members
  * */
 void Model::SetNumerics() {
-    Nx = 10;
-    Ny = 10;
-    Nt = 10;
+    Nx = 11;
+    Ny = 11;
+    Nt = 11;
     // dx,dy and dt are dependent on L,T and Nx,Ny,Nt:
-    dx = Lx / Nx;
-    dy = Ly / Ny;
-    dt = T / Nt;
+    dx = Lx / (Nx-1);
+    dy = Ly / (Ny-1);
+    dt = T / (Nt-1);
     // x0 and y0 represent the top LHS of the matrix:
     x0 = -Lx/2.0;
     y0 = Ly/2.0;
