@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include <mpi.h>
 #include "Model.h"
 #include "ParseException.h"
 
@@ -16,6 +16,9 @@ using namespace std;
 Model::Model(int argc, char** argv) {
     try {
         ParseParameters(argc, argv);
+        MPI_Init(&argc, &argv);
+        MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &p);
     } catch (IllegalArgumentException &e) {
         cout << e.what() << endl;
     }
@@ -23,7 +26,9 @@ Model::Model(int argc, char** argv) {
     ValidateParameters();
 }
 
-Model::~Model() {}
+Model::~Model() {
+    MPI_Finalize();
+}
 
 /**
  * Parses parameters from command line into program

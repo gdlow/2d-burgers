@@ -1,7 +1,6 @@
 #ifndef CLASS_MODEL
 #define CLASS_MODEL
 
-// #include "mpi.h"
 
 class Model {
 public:
@@ -32,6 +31,10 @@ public:
     double GetC()      const { return c; }
 
     // Add any other getters here...
+
+    // MPI parameters
+    int GetP()         const { return p; }
+    int GetRank()      const { return loc_rank; }
 
 private:
     void ParseParameters(int argc, char* argv[]);
@@ -65,6 +68,10 @@ private:
     double c;
 
     // Add any additional parameters here...
+
+    // MPI Parameters
+    int p;
+    int loc_rank;
 };
 
 #endif //CLASS_MODEL
