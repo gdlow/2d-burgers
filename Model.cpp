@@ -51,13 +51,15 @@ void Model::ParseParameters(int argc, char **argv) {
  * Prints model parameters
  * */
 void Model::PrintParameters() {
-    cout << "ax: " << ax << endl;
-    cout << "ay: " << ay << endl;
-    cout << "b: " << b << endl;
-    cout << "c: " << c << endl;
-    cout << "Lx: " << Lx << endl;
-    cout << "Ly: " << Ly << endl;
-    cout << "T: " << T << endl;
+    if (loc_rank == 0) {
+        cout << "ax: " << ax << endl;
+        cout << "ay: " << ay << endl;
+        cout << "b: " << b << endl;
+        cout << "c: " << c << endl;
+        cout << "Lx: " << Lx << endl;
+        cout << "Ly: " << Ly << endl;
+        cout << "T: " << T << endl;
+    }
 }
 
 /**

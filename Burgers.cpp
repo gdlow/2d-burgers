@@ -278,8 +278,10 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double* loc_NextVel = new double[Nyr*loc_Nxr];
 
     // IF scatter != work, try Alltoall
-    MPI_Scatter(Vel, Nyr*loc_Nxr, MPI_DOUBLE, loc_Vel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatter(Other, Nyr*loc_Nxr, MPI_DOUBLE, loc_Other,Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Alltoall(Vel, Nyr*loc_Nxr, MPI_DOUBLE, loc_Vel, Nyr*loc_Nxr, MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Alltoall(Other, Nyr*loc_Nxr, MPI_DOUBLE, loc_Other, Nyr*loc_Nxr, MPI_DOUBLE, MPI_COMM_WORLD);
+    // MPI_Scatter(Vel, Nyr*loc_Nxr, MPI_DOUBLE, loc_Vel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // MPI_Scatter(Other, Nyr*loc_Nxr, MPI_DOUBLE, loc_Other,Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     // Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
@@ -325,7 +327,8 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     }
 
     // Again, if this doesn't work, is there an Alltoall version?
-    MPI_Gather(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Allgather(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, Nyr*loc_Nxr, MPI_DOUBLE, MPI_COMM_WORLD);
+    // MPI_Gather(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     // Delete pointers
     delete[] loc_Vel;
