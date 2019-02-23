@@ -48,7 +48,7 @@ Helpersp.o: Helpers.cpp Helpers.h
 	mpicxx -std=c++11 -Wall -O2 -o Helpersp.o -c Helpers.cpp	
 
 compilep: mainp.o Burgersp.o Modelp.o Helpersp.o
-	mpicxx -o compilep mainp.o Burgersp.o Model_mpi.o Helpersp.o -lblas
+	mpicxx -o compilep mainp.o Burgersp.o Modelp.o Helpersp.o -lblas
 
 diffp: compilep
 	mpiexec -np 2 ./compilep 0 0 0 1 10 10 1
