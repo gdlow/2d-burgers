@@ -51,8 +51,8 @@ Burgers::~Burgers() {
     U0 = nullptr;
 
     // Delete E
-    delete[] E;
-    E = nullptr;
+    // delete[] E;
+    // E = nullptr;
 
     // model is not dynamically alloc
 }
