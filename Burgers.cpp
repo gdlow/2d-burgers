@@ -33,6 +33,10 @@ Burgers::~Burgers() {
     delete[] dVel_dx_coeffs;
     delete[] dVel_dy_coeffs;
 
+    // Delete Cache
+    delete[] Vel_c;
+    delete[] Other_c;
+
     // Delete U and V
     for (int k = 1; k < Nt; k++) {
         // U[0] = V[0] = U0 (not dynamically alloc)
@@ -267,6 +271,8 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double dx = model->GetDx();
     double dy = model->GetDy();
     double b = model->GetB();
+    double ax = model->GetAx();
+    double c = model->GetC();
 
     // Reduced parameters
     int Nyr = Ny - 2;
@@ -286,6 +292,10 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double* loc_Vel = new double[Nyr*loc_Nxr];
     double* loc_Other = new double[Nyr*loc_Nxr];
     double* loc_NextVel = new double[Nyr*loc_Nxr];
+
+    // Set cache for Vel and Other
+    SetCache(Vel, Vel_c);
+    SetCache(Other, Other_c);
 
     MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -311,18 +321,47 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, loc_Nxr, -1.0, dVel_dx_coeffs, loc_Nxr, dVel_dx, Nyr);
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, loc_Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
+    // Modify arrays based on cache values
+    for (int j = 0; j < Nyr; j++) {
+        if (loc_rank==0) {
+            // LHS: Fix last col
+            dVel_dx_2[(loc_Nxr-1)*Nyr+j] += c/pow(dx,2.0)*Vel_c[j];
+        }
+        else {
+            // RHS: Fix first col
+            dVel_dx_2[j] += c/pow(dx,2.0)*Vel_c[j];
+            dVel_dx[j] -= ax/dx*Vel_c[j];
+        }
+    }
+
     // Compute b terms
     if (U_OR_V == SELECT_U) {
         Vel_Vel = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, false, false, b/dx);
         Vel_Other = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, false, false, b/dy);
         Vel_Vel_Minus_1 = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, true, false, b/dx);
         Vel_Other_Minus_1 = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, false, true, b/dy);
+
+        // Modify Vel_Vel_Minus_1 to include previous cache
+        // Fix first col
+        if (loc_rank == 1) {
+            for (int i = 0; i < Nyr; i++) {
+                Vel_Vel_Minus_1[i] = Vel_c[i] * loc_Vel[i];
+            }
+        }
     }
     else {
         Vel_Vel = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, false, false, b/dy);
         Vel_Other = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, false, false, b/dx);
         Vel_Vel_Minus_1 = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, false, true, b/dy);
         Vel_Other_Minus_1 = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, true, false, b/dx);
+
+        // Modify Vel_Other_Minus_1 to include previous cache
+        // Fix first col
+        if (loc_rank == 1) {
+            for (int i = 0; i < Nyr; i++) {
+                Vel_Other_Minus_1[i] = Vel_c[i] * loc_Other[i];
+            }
+        }
     }
 
     // Matrix addition through all terms
@@ -386,4 +425,32 @@ void Burgers::SetMatrixCoefficients() {
 double Burgers::ComputeR(double x, double y) {
     double r = pow(x*x+y*y, 0.5);
     return r;
+}
+
+void Burgers::SetCache(double* Vel, double* Cache) {
+    // Delete previously set value
+    delete[] Cache;
+
+    // MPI Parameters
+    int loc_rank = model->GetRank();
+
+    // Get model parameters
+    int Ny = model->GetNy();
+    int Nx = model->GetNx();
+
+    // Reduced parameters
+    int Nyr = Ny - 2;
+    int Nxr = Nx - 2;
+
+    // Split x domain into 2
+    int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
+
+    // Set Cache
+    Cache = new double[Nyr];
+    for (int j = 0; j < Nyr; j++) {
+        // Picks out first col of RHS for LHS (col = 5)
+        // Picks out last col of LHS for RHS (col = 4)
+        Cache[j] = Vel[loc_Nxr*Nyr+j];
+    }
+
 }

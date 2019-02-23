@@ -16,6 +16,7 @@ private:
     double ComputeR(double x, double y);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
+    void SetCache(double* Vel, double* Cache);
 
     // Burger parameters
     Model* model;
@@ -27,5 +28,9 @@ private:
     double* dVel_dy_2_coeffs;
     double* dVel_dx_coeffs;
     double* dVel_dy_coeffs;
+
+    // Cache for dual partition
+    double* Vel_c;
+    double* Other_c;
 };
 #endif //CLASS_BURGERS
