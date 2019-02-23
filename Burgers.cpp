@@ -458,5 +458,4 @@ void Burgers::SetCache(double* Vel, double* Cache) {
         // Picks out last col of LHS for RHS (col = 4)
         Cache[j] = Vel[loc_Nxr*Nyr+j];
     }
-
 }
