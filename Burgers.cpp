@@ -226,14 +226,14 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double* Vel_Other_Minus_1 = nullptr;
 
     // Compute second derivatives
-    F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nxr, 0.0, dVel_dx_2, Nxr);
-    F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nxr, 0.0, dVel_dy_2, Nxr);
+    F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nyr, 0.0, dVel_dx_2, Nyr);
+    F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
 
     // Compute first derivatives
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
-    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, -1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nxr);
-    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nxr);
+    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, -1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
+    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
     // Compute b terms
     if (U_OR_V == SELECT_U) {
