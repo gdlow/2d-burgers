@@ -131,8 +131,6 @@ void Burgers::SetIntegratedVelocity() {
  * IMPORTANT: Run SetIntegratedVelocity() first
  * */
 void Burgers::WriteVelocityFile() {
-    // TODO: Either do Alltoall or run this in root
-    // TODO: Because only root will have access to populated data, and you only want 1 copy
     // MPI Parameters
     int loc_rank = model->GetRank();
     if (loc_rank == 0) {
@@ -289,8 +287,6 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double* loc_Other = new double[Nyr*loc_Nxr];
     double* loc_NextVel = new double[Nyr*loc_Nxr];
 
-    // MPI_Alltoallv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
-    // MPI_Alltoallv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
     MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
