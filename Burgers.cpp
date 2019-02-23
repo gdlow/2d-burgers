@@ -5,6 +5,7 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers.h"
+#include <iostream>
 
 using namespace std;
 
@@ -252,6 +253,8 @@ void Burgers::SetEnergy() {
 double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     // MPI Parameters
     int loc_rank = model->GetRank();
+    int* sendcounts = new int[2];
+    int* displs = new int[2];
 
     // Get model parameters
     int Ny = model->GetNy();
@@ -266,7 +269,11 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     int Nxr = Nx - 2;
 
     // Split x domain into 2
+    // You want the domain to be 45 (9*5) and 36 (9*4).
     int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
+
+    sendcounts[0] = 45; sendcounts[1] = 36;
+    displs[0] = 0; displs[1] = 45;
 
     // Set aliases for computation
     double* Vel = (U_OR_V) ? Ui : Vi;
@@ -277,11 +284,8 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double* loc_Other = new double[Nyr*loc_Nxr];
     double* loc_NextVel = new double[Nyr*loc_Nxr];
 
-    // IF scatter != work, try Alltoall
-    MPI_Alltoall(Vel, Nyr*loc_Nxr, MPI_DOUBLE, loc_Vel, Nyr*loc_Nxr, MPI_DOUBLE, MPI_COMM_WORLD);
-    MPI_Alltoall(Other, Nyr*loc_Nxr, MPI_DOUBLE, loc_Other, Nyr*loc_Nxr, MPI_DOUBLE, MPI_COMM_WORLD);
-    // MPI_Scatter(Vel, Nyr*loc_Nxr, MPI_DOUBLE, loc_Vel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    // MPI_Scatter(Other, Nyr*loc_Nxr, MPI_DOUBLE, loc_Other,Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     // Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
@@ -295,7 +299,12 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     double* Vel_Other_Minus_1 = nullptr;
 
     // Compute second derivatives
-    F77NAME(dsymm)('R', 'U', Nyr, loc_Nxr, 1.0, dVel_dx_2_coeffs, loc_Nxr, loc_Vel, loc_Nxr, 0.0, dVel_dx_2, loc_Nxr);
+    // F77NAME(dsymm)('R', 'U', Nyr, loc_Nxr, 1.0, dVel_dx_2_coeffs, loc_Nxr, loc_Vel, loc_Nxr, 0.0, dVel_dx_2, loc_Nxr);
+    // LDA = no. of rows in A (Nyr)
+    // LDB = no. of rows in B (loc_Nxr)
+    // LDC = no. of rows in C (Nyr)
+    F77NAME(dgemm)('n','n', Nyr, loc_Nxr, loc_Nxr, 1.0, loc_Vel, Nyr, dVel_dx_2_coeffs, loc_Nxr, 0.0, dVel_dx_2, Nyr);
+    cout << sendcounts[loc_rank] << " Debug" << endl;
     F77NAME(dsymm)('L', 'U', Nyr, loc_Nxr, 1.0, dVel_dy_2_coeffs, Nyr, loc_Vel, loc_Nxr, 0.0, dVel_dy_2, loc_Nxr);
 
     // Compute first derivatives
@@ -326,11 +335,11 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
         loc_NextVel[i] += Vel[i];
     }
 
-    // Again, if this doesn't work, is there an Alltoall version?
-    MPI_Allgather(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, Nyr*loc_Nxr, MPI_DOUBLE, MPI_COMM_WORLD);
-    // MPI_Gather(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, Nyr*loc_Nxr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     // Delete pointers
+    delete[] sendcounts;
+    delete[] displs;
     delete[] loc_Vel;
     delete[] loc_Other;
     delete[] loc_NextVel;
