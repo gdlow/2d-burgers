@@ -35,9 +35,9 @@ void wrap(double* A, int Nyr, int Nxr, double** res) {
     }
 }
 
-void printDebug(double* A, int Nyr, int Nxr) {
+void printDebug(double* A, int Nyr, int Nxr, char c) {
     double ** res = wrap(A, Nyr, Nxr);
-    std::cout << "PrintDebug:" << std::endl;
+    std::cout << "PrintDebug " << c << ":" << std::endl;
     for (int j = 0; j < Nyr; j++) {
         for (int i = 0; i < Nxr; i++) {
             std::cout << res[j][i] << ' ';

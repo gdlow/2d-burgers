@@ -3,7 +3,7 @@
 double* unwrap(double** M, int n, int m);
 double** wrap(double* A, int Nyr, int Nxr);
 void wrap(double* A, int Nyr, int Nxr, double** res);
-void printDebug(double* A, int Nyr, int Nxr);
+void printDebug(double* A, int Nyr, int Nxr, char c);
 double** transpose(double** A, int N, int M);
 double* GenSymm(double alpha, double beta, int Nyr, int Nxr);
 double* GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER);

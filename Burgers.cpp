@@ -380,6 +380,12 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
         loc_NextVel[i] += Vel[i];
     }
 
+    if (U_OR_V == SELECT_U) {
+        printDebug(Vel, Nyr, Nxr, 'O');
+        cout << endl;
+        printDebug(loc_NextVel, Nyr, loc_Nxr, 'U');
+    }
+
     MPI_Allgatherv(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 
     // Delete pointers
