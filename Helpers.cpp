@@ -1,5 +1,5 @@
 #include "Helpers.h"
-
+#include <iostream>
 /* Helper functions with 2D matrices */
 double* unwrap(double** M, int n, int m) {
     double* res = new double[n*m];
@@ -33,6 +33,22 @@ void wrap(double* A, int Nyr, int Nxr, double** res) {
         int row = i % Nyr; // remainder after division
         res[row][col] = A[i];
     }
+}
+
+void printDebug(double* A, int Nyr, int Nxr) {
+    double ** res = wrap(A, Nyr, Nxr);
+    for (int j = 0; j < Nyr; j++) {
+        for (int i = 0; i < Nxr; i++) {
+            std::cout << res[j][i] << ' ';
+        }
+        std::cout << std::endl;
+    }
+
+    // destroy res
+    for (int j = 0; j < Nyr; j++) {
+        delete[] res[j];
+    }
+    delete[] res;
 }
 
 double** transpose(double** A, int N, int M) {
