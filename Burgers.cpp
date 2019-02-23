@@ -79,7 +79,7 @@ void Burgers::SetInitialVelocity() {
     for (int i = 0; i < loc_Nxr; i++) {
         for (int j = 0; j < Nyr; j++) {
             double y = y0 - (j+1)*dy;
-            double x = x0 + (loc_rank*loc_Nxr+i+1)*dx;
+            double x = (loc_rank == 0)? x0 + (i+1)*dx : x0 + (loc_rank*loc_Nxr+i+2)*dx;
             double r = ComputeR(x, y);
             loc_U0[i*Nyr+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
         }
@@ -98,6 +98,7 @@ void Burgers::SetInitialVelocity() {
  * Sets velocity field in x,y for U, V
  * */
 void Burgers::SetIntegratedVelocity() {
+    // TODO: Either do Alltoall or run this in root (Do i have to?)
     // Get model parameters
     int Nt = model->GetNt();
 
@@ -123,70 +124,77 @@ void Burgers::SetIntegratedVelocity() {
  * IMPORTANT: Run SetIntegratedVelocity() first
  * */
 void Burgers::WriteVelocityFile() {
-    // Get model parameters
-    int Nt = model->GetNt();
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-    double dt = model->GetDt();
+    // TODO: Either do Alltoall or run this in root
+    // TODO: Because only root will have access to populated data, and you only want 1 copy
+    // MPI Parameters
+    int loc_rank = model->GetRank();
+    if (loc_rank == 0) {
+        // Get model parameters
+        int Nt = model->GetNt();
+        int Ny = model->GetNy();
+        int Nx = model->GetNx();
+        double dt = model->GetDt();
 
-    // Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
+        // Reduced parameters
+        int Nyr = Ny - 2;
+        int Nxr = Nx - 2;
 
-    // Alloc 2D pointer
-    double** Vel = new double*[Nyr];
-    for (int j = 0; j < Nyr; j++) {
-        Vel[j] = new double[Nxr];
-    }
-
-    // Write U, V into "data.txt"
-    ofstream of;
-    of.open("data.txt", ios::out | ios::trunc);
-    of.precision(4); // 4 s.f.
-    // Write U velocities
-    of << "U velocity field:" << endl;
-    for (int k = 0; k < Nt; k++) {
-        of << "t = " << k*dt << ":" << endl;
-        wrap(U[k], Nyr, Nxr, Vel);
-        for (int j = 0; j < Ny; j++) {
-            for (int i = 0; i < Nx; i++) {
-                if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
-                    of << 0 << ' ';
-                }
-                else {
-                    of << Vel[j-1][i-1] << ' ';
-                }
-            }
-            of << endl;
+        // Alloc 2D pointer
+        double** Vel = new double*[Nyr];
+        for (int j = 0; j < Nyr; j++) {
+            Vel[j] = new double[Nxr];
         }
-    }
-    // Write V velocities
-    of << "V velocity field:" << endl;
-    for (int k = 0; k < Nt; k++) {
-        of << "t = " << k*dt << ":" << endl;
-        wrap(V[k], Nyr, Nxr, Vel);
-        for (int j = 0; j < Ny; j++) {
-            for (int i = 0; i < Nx; i++) {
-                if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
-                    of << 0 << ' ';
-                }
-                else {
-                    of << Vel[j-1][i-1] << ' ';
-                }
-            }
-            of << endl;
-        }
-    }
-    of.close();
 
-    // Delete 2D temp pointer
-    for (int j = 0; j < Nyr; j++) {
-        delete[] Vel[j];
+        // Write U, V into "data.txt"
+        ofstream of;
+        of.open("data.txt", ios::out | ios::trunc);
+        of.precision(4); // 4 s.f.
+        // Write U velocities
+        of << "U velocity field:" << endl;
+        for (int k = 0; k < Nt; k++) {
+            of << "t = " << k*dt << ":" << endl;
+            wrap(U[k], Nyr, Nxr, Vel);
+            for (int j = 0; j < Ny; j++) {
+                for (int i = 0; i < Nx; i++) {
+                    if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
+                        of << 0 << ' ';
+                    }
+                    else {
+                        of << Vel[j-1][i-1] << ' ';
+                    }
+                }
+                of << endl;
+            }
+        }
+        // Write V velocities
+        of << "V velocity field:" << endl;
+        for (int k = 0; k < Nt; k++) {
+            of << "t = " << k*dt << ":" << endl;
+            wrap(V[k], Nyr, Nxr, Vel);
+            for (int j = 0; j < Ny; j++) {
+                for (int i = 0; i < Nx; i++) {
+                    if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
+                        of << 0 << ' ';
+                    }
+                    else {
+                        of << Vel[j-1][i-1] << ' ';
+                    }
+                }
+                of << endl;
+            }
+        }
+        of.close();
+
+        // Delete 2D temp pointer
+        for (int j = 0; j < Nyr; j++) {
+            delete[] Vel[j];
+        }
+        delete[] Vel;
     }
-    delete[] Vel;
 }
 
 void Burgers::SetEnergy() {
+    // TODO: Consider Alltoall? (TO TEST)
     // MPI Parameters
     int p = model->GetP();
     int loc_rank = model->GetRank();
