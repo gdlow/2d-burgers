@@ -77,7 +77,7 @@ void Burgers::SetInitialVelocity() {
             double x = x0 + i*dx;
             double r = ComputeR(x, y);
             // Store in column-major format
-            U0[(i-1)*Nyr+(j-1)] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r-1.0) : 0.0;
+            U0[(i-1)*Nyr+(j-1)] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
