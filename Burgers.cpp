@@ -112,6 +112,10 @@ void Burgers::SetInitialVelocity() {
 void Burgers::SetIntegratedVelocity() {
     // Get model parameters
     int Nt = model->GetNt();
+    int Ny = model->GetNy();
+
+    // Reduced parameters
+    int Nyr = Ny - 2;
 
     // Generate U, V
     U = nullptr; V = nullptr;
@@ -122,6 +126,10 @@ void Burgers::SetIntegratedVelocity() {
 
     // Set Matrix Coefficients
     SetMatrixCoefficients();
+
+    // Allocate cache memory
+    Vel_c = new double[Nyr];
+    Other_c = new double[Nyr];
 
     // Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
@@ -428,8 +436,7 @@ double Burgers::ComputeR(double x, double y) {
 }
 
 void Burgers::SetCache(double* Vel, double* Cache) {
-    // Delete previously set value
-    delete[] Cache;
+    // Cache should be allocated Nyr memory before this is run
 
     // MPI Parameters
     int loc_rank = model->GetRank();
@@ -446,7 +453,6 @@ void Burgers::SetCache(double* Vel, double* Cache) {
     int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
 
     // Set Cache
-    Cache = new double[Nyr];
     for (int j = 0; j < Nyr; j++) {
         // Picks out first col of RHS for LHS (col = 5)
         // Picks out last col of LHS for RHS (col = 4)
