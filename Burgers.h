@@ -31,6 +31,5 @@ private:
 
     // Cache for dual partition
     double* Vel_c;
-    double* Other_c;
 };
 #endif //CLASS_BURGERS

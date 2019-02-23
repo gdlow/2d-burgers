@@ -35,7 +35,6 @@ Burgers::~Burgers() {
 
     // Delete Cache
     delete[] Vel_c;
-    delete[] Other_c;
 
     // Delete U and V
     for (int k = 1; k < Nt; k++) {
@@ -129,7 +128,6 @@ void Burgers::SetIntegratedVelocity() {
 
     // Allocate cache memory
     Vel_c = new double[Nyr];
-    Other_c = new double[Nyr];
 
     // Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
@@ -303,7 +301,6 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
 
     // Set cache for Vel and Other
     SetCache(Vel, Vel_c);
-    SetCache(Other, Other_c);
 
     MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -326,8 +323,8 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     // Compute first derivatives
     F77NAME(dcopy)(Nyr*loc_Nxr, loc_Vel, 1, dVel_dx, 1);
     F77NAME(dcopy)(Nyr*loc_Nxr, loc_Vel, 1, dVel_dy, 1);
-    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, loc_Nxr, -1.0, dVel_dx_coeffs, loc_Nxr, dVel_dx, Nyr);
-    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, loc_Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
+    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, loc_Nxr, 1.0, dVel_dx_coeffs, loc_Nxr, dVel_dx, Nyr);
+    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, loc_Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
     // Modify arrays based on cache values
     for (int j = 0; j < Nyr; j++) {
@@ -374,16 +371,10 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
 
     // Matrix addition through all terms
     for (int i = 0; i < Nyr*loc_Nxr; i++) {
-        loc_NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] + dVel_dx[i] + dVel_dy[i] -
+        loc_NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
                 (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
         loc_NextVel[i] *= dt;
-        loc_NextVel[i] += Vel[i];
-    }
-
-    if (U_OR_V == SELECT_U) {
-        printDebug(Vel, Nyr, Nxr, 'O');
-        cout << endl;
-        printDebug(loc_NextVel, Nyr, loc_Nxr, 'U');
+        loc_NextVel[i] += loc_Vel[i];
     }
 
     MPI_Allgatherv(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
