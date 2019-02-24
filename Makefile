@@ -1,26 +1,21 @@
+CXX = g++
+MPIXX = mpicxx
+CXXFLAGS = -std=c++11 -Wall -O2
+LDLIBS = -lblas
+
+HDRS = Burgers2P.h Burgers.h Model.h Helpers.h
+SRC = main.cpp Burgers2P.cpp Burgers.cpp Model.cpp Helpers.cpp
+OBJS = $(SRC:.cpp=.o)
+
 default: compile
 
-main.o: main.cpp
-	mpicxx -std=c++11 -Wall -O2 -o main.o -c main.cpp
+%.o: %.cpp $(HDRS)
+	$(MPIXX) $(CXXFLAGS) -o $@ -c $<
 
-Burgers.o: Burgers.cpp Burgers.h
-	mpicxx -std=c++11 -Wall -O2 -o Burgers.o -c Burgers.cpp
+compile: $(OBJS)
+	$(MPIXX) -o $@ $^ $(LDLIBS)
 
-Burgers2P.o: Burgers2P.cpp Burgers2P.h
-	mpicxx -std=c++11 -Wall -O2 -o Burgers2P.o -c Burgers2P.cpp
-
-Model.o: Model.cpp Model.h
-	mpicxx -std=c++11 -Wall -O2 -o Model.o -c Model.cpp
-
-Helpers.o: Helpers.cpp Helpers.h
-	mpicxx -std=c++11 -Wall -O2 -o Helpers.o -c Helpers.cpp	
-
-compile: main.o Burgers.o Burgers2P.o Model.o Helpers.o
-	mpicxx -o compile main.o Burgers.o Burgers2P.o Model.o Helpers.o -lblas
-
-#invalid argument exception should be thrown
-invalidArg: compile
-	./compile 0 0 0 1 
+all: compile
 
 diff: compile
 	./compile 0 0 0 1 10 10 1 0
@@ -33,8 +28,6 @@ advy: compile
 
 burg: compile
 	./compile 1.0 0.5 1.0 0.02 10 10 1 0
-
-all: compile
 
 ## For running MPI processes
 diffp: compile
@@ -51,4 +44,4 @@ burgp: compile
 
 .PHONY: clean
 clean:
-	rm -f *.o compile compilep
+	rm -f *.o compile

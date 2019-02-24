@@ -56,7 +56,7 @@ double** transpose(double** A, int N, int M) {
     }
     return T;
 }
-}
+
 
 /**
  * Generates a symmetrical, square matrix
