@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include <mpi.h>
 #include "Model.h"
 #include "ParseException.h"
 
@@ -16,6 +16,9 @@ using namespace std;
 Model::Model(int argc, char** argv) {
     try {
         ParseParameters(argc, argv);
+        MPI_Init(&argc, &argv);
+        MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &p);
     } catch (IllegalArgumentException &e) {
         cout << e.what() << endl;
     }
@@ -23,13 +26,15 @@ Model::Model(int argc, char** argv) {
     ValidateParameters();
 }
 
-Model::~Model() {}
+Model::~Model() {
+    MPI_Finalize();
+}
 
 /**
  * Parses parameters from command line into program
  * */
 void Model::ParseParameters(int argc, char **argv) {
-    if (argc == 8) {
+    if (argc == 9) {
         ax = atof(argv[1]);
         ay = atof(argv[2]);
         b = atof(argv[3]);
@@ -37,6 +42,7 @@ void Model::ParseParameters(int argc, char **argv) {
         Lx = atof(argv[5]);
         Ly = atof(argv[6]);
         T = atof(argv[7]);
+        // Last parameter for choosing Serial (0) or Parallel (1)
         cout << "Parameters saved successfully." << endl;
     }
     else throw illegalArgumentException;
@@ -46,13 +52,15 @@ void Model::ParseParameters(int argc, char **argv) {
  * Prints model parameters
  * */
 void Model::PrintParameters() {
-    cout << "ax: " << ax << endl;
-    cout << "ay: " << ay << endl;
-    cout << "b: " << b << endl;
-    cout << "c: " << c << endl;
-    cout << "Lx: " << Lx << endl;
-    cout << "Ly: " << Ly << endl;
-    cout << "T: " << T << endl;
+    if (loc_rank == 0) {
+        cout << "ax: " << ax << endl;
+        cout << "ay: " << ay << endl;
+        cout << "b: " << b << endl;
+        cout << "c: " << c << endl;
+        cout << "Lx: " << Lx << endl;
+        cout << "Ly: " << Ly << endl;
+        cout << "T: " << T << endl;
+    }
 }
 
 /**

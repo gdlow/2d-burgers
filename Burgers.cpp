@@ -7,9 +7,6 @@
 
 using namespace std;
 
-bool SELECT_U = true;
-bool SELECT_V = false;
-
 /**
  * Constructor: Accepts a Model instance pointer as input
  * Sets it as an instance variable
@@ -101,8 +98,8 @@ void Burgers::SetIntegratedVelocity() {
 
     // Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        U[k+1] = NextVelocityState(U[k], V[k], SELECT_U);
-        V[k+1] = NextVelocityState(U[k], V[k], SELECT_V);
+        U[k+1] = NextVelocityState(U[k], V[k], true);
+        V[k+1] = NextVelocityState(U[k], V[k], false);
     }
 }
 
@@ -197,7 +194,7 @@ void Burgers::SetEnergy() {
 /**
  * Computes and returns next velocity state based on previous inputs
  * */
-double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
+double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     // Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
@@ -211,8 +208,8 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     int Nxr = Nx - 2;
 
     // Set aliases for computation
-    double* Vel = (U_OR_V) ? Ui : Vi;
-    double* Other = (U_OR_V)? Vi : Ui;
+    double* Vel = (SELECT_U) ? Ui : Vi;
+    double* Other = (SELECT_U)? Vi : Ui;
 
     // Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
@@ -236,7 +233,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
     // Compute b terms
-    if (U_OR_V == SELECT_U) {
+    if (SELECT_U == true) {
         Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dx);
         Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dy);
         Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, true, false, b/dx);
@@ -252,7 +249,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
     // Matrix addition through all terms
     for (int i = 0; i < Nyr*Nxr; i++) {
         NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] + dVel_dx[i] + dVel_dy[i] -
-                (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
+                     (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
         NextVel[i] *= dt;
         NextVel[i] += Vel[i];
     }
