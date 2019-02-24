@@ -1,6 +1,4 @@
-#ifndef BLAS_WRAPPER_H
-#define BLAS_WRAPPER_H
-
+#ifndef F77NAME
 #define F77NAME(x) x##_
 extern "C" {
 /* Level 1 functions */
@@ -46,5 +44,4 @@ void F77NAME(dtrmm) (
         );
 }
 
-
-#endif //BLAS_WRAPPER_H
+#endif //F77NAME

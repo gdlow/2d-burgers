@@ -1,15 +1,9 @@
 #include "Helpers.h"
 #include <iostream>
+
+
 /* Helper functions with 2D matrices */
-double* unwrap(double** M, int n, int m) {
-    double* res = new double[n*m];
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            res[i*m+j] = M[i][j];
-        }
-    }
-    return res;
-}
+
 /**
  * Wraps a column-major 1D pointer into a row-major 2D array
  * */
@@ -61,6 +55,7 @@ double** transpose(double** A, int N, int M) {
         }
     }
     return T;
+}
 }
 
 /**

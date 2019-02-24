@@ -1,12 +1,12 @@
-#ifndef CLASS_BURGERS
-#define CLASS_BURGERS
+#ifndef CLASS_BURGERS2P
+#define CLASS_BURGERS2P
 
 #include "Model.h"
 
-class Burgers {
+class Burgers2P {
 public:
-    Burgers(Model &m);
-    ~Burgers();
+    Burgers2P(Model &m);
+    ~Burgers2P();
 
     void SetInitialVelocity();
     void SetIntegratedVelocity();
@@ -14,8 +14,10 @@ public:
     void SetEnergy();
 private:
     double ComputeR(double x, double y);
+    double NextEnergyState(double* Ui, double* Vi);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
+    void SetCache(double* Vel, double* Cache);
 
     // Burger parameters
     Model* model;
@@ -27,5 +29,8 @@ private:
     double* dVel_dy_2_coeffs;
     double* dVel_dx_coeffs;
     double* dVel_dy_coeffs;
+
+    // Cache for dual partition
+    double* Vel_c;
 };
-#endif //CLASS_BURGERS
+#endif //CLASS_BURGERS2P

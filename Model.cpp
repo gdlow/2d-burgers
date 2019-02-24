@@ -34,7 +34,7 @@ Model::~Model() {
  * Parses parameters from command line into program
  * */
 void Model::ParseParameters(int argc, char **argv) {
-    if (argc == 8) {
+    if (argc == 9) {
         ax = atof(argv[1]);
         ay = atof(argv[2]);
         b = atof(argv[3]);
@@ -42,6 +42,7 @@ void Model::ParseParameters(int argc, char **argv) {
         Lx = atof(argv[5]);
         Ly = atof(argv[6]);
         T = atof(argv[7]);
+        // Last parameter for choosing Serial (0) or Parallel (1)
         cout << "Parameters saved successfully." << endl;
     }
     else throw illegalArgumentException;
