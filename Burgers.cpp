@@ -350,7 +350,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
         // Fix first col
         if (loc_rank == 1) {
             for (int i = 0; i < Nyr; i++) {
-                Vel_Vel_Minus_1[i] = Vel_c[i] * loc_Vel[i];
+                Vel_Vel_Minus_1[i] = b/dx * Vel_c[i] * loc_Vel[i];
             }
         }
     }
@@ -364,7 +364,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool U_OR_V) {
         // Fix first col
         if (loc_rank == 1) {
             for (int i = 0; i < Nyr; i++) {
-                Vel_Other_Minus_1[i] = Vel_c[i] * loc_Other[i];
+                Vel_Other_Minus_1[i] = b/dx * Vel_c[i] * loc_Other[i];
             }
         }
     }
