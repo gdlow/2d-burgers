@@ -50,8 +50,8 @@ Burgers::~Burgers() {
     U0 = nullptr;
 
     // Delete E
-    // delete[] E;
-    // E = nullptr;
+    delete[] E;
+    E = nullptr;
 
     // model is not dynamically alloc
 }
@@ -208,14 +208,27 @@ void Burgers::WriteVelocityFile() {
     }
 }
 
+
 void Burgers::SetEnergy() {
-    // TODO: Consider Alltoall? (TO TEST)
+    // Get Model parameters
+    int Nt = model->GetNt();
+
+    // Calculate Energy
+    E = nullptr;
+    E = new double[Nt];
+    for (int k = 0; k < Nt; k++) {
+        E[k] = NextEnergyState(U[k], V[k]);
+    }
+}
+
+double Burgers::NextEnergyState(double* Ui, double* Vi) {
     // MPI Parameters
     int p = model->GetP();
     int loc_rank = model->GetRank();
+    int* sendcounts = new int[p];
+    int* displs = new int[p];
 
     // Get Model parameters
-    int Nt = model->GetNt();
     int Ny = model->GetNy();
     int Nx = model->GetNx();
 
@@ -225,40 +238,30 @@ void Burgers::SetEnergy() {
 
     // Split x domain into 2
     int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
-    double** loc_U = new double*[Nt];
-    double** loc_V = new double*[Nt];
-    double** U_dots = new double*[Nt];
-    double** V_dots = new double*[Nt];
+    sendcounts[0] = Nyr*((Nxr/2)+1); sendcounts[1] = Nyr*(Nxr/2);
+    displs[0] = 0; displs[1] = sendcounts[0];
 
-    // Calculate Energy
-    E = nullptr;
-    E = new double[Nt];
-    for (int k = 0; k < Nt; k++) {
-        loc_U[k] = new double[loc_Nxr*Nyr];
-        loc_V[k] = new double[loc_Nxr*Nyr];
-        U_dots[k] = new double[p];
-        V_dots[k] = new double[p];
-        MPI_Scatter(U[k], loc_Nxr*Nyr, MPI_DOUBLE, loc_U[k], loc_Nxr*Nyr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Scatter(V[k], loc_Nxr*Nyr, MPI_DOUBLE, loc_V[k], loc_Nxr*Nyr, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        double loc_ddotU = F77NAME(ddot)(Nyr*loc_Nxr, loc_U[k], 1, loc_U[k], 1);
-        double loc_ddotV = F77NAME(ddot)(Nyr*loc_Nxr, loc_V[k], 1, loc_V[k], 1);
-        MPI_Gather(&loc_ddotU, 1, MPI_DOUBLE, U_dots[k], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        MPI_Gather(&loc_ddotV, 1, MPI_DOUBLE, V_dots[k], 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        if (loc_rank == 0) {
-            // Consolidate dot prods
-            E[k] = 0.5 * (U_dots[k][0] + U_dots[k][1] + V_dots[k][0] + V_dots[k][1]);
-        }
-    }
-    for (int k = 0; k < Nt; k++) {
-        delete[] loc_U[k];
-        delete[] loc_V[k];
-        delete[] U_dots[k];
-        delete[] V_dots[k];
-    }
+    double* loc_U = new double[loc_Nxr*Nyr];
+    double* loc_V = new double[loc_Nxr*Nyr];
+    double* U_dots = new double[p];
+    double* V_dots = new double[p];
+
+    MPI_Scatterv(Ui, sendcounts, displs, MPI_DOUBLE, loc_U, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(Vi, sendcounts, displs, MPI_DOUBLE, loc_V, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    double loc_ddotU = F77NAME(ddot)(Nyr*loc_Nxr, loc_U, 1, loc_U, 1);
+    double loc_ddotV = F77NAME(ddot)(Nyr*loc_Nxr, loc_V, 1, loc_V, 1);
+
+    MPI_Allgather(&loc_ddotU, 1, MPI_DOUBLE, U_dots, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Allgather(&loc_ddotV, 1, MPI_DOUBLE, V_dots, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+
+    double NextEnergyState = 0.5 * (U_dots[0] + U_dots[1] + V_dots[0] + V_dots[1]);
+
     delete[] loc_U;
     delete[] loc_V;
     delete[] U_dots;
     delete[] V_dots;
+
+    return NextEnergyState;
 }
 
 /**

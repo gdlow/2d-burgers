@@ -14,6 +14,7 @@ public:
     void SetEnergy();
 private:
     double ComputeR(double x, double y);
+    double NextEnergyState(double* Ui, double* Vi);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
     void SetCache(double* Vel, double* Cache);
