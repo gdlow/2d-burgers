@@ -57,49 +57,34 @@ Burgers2P::~Burgers2P() {
  * Sets initial velocity field in x,y for U0 (V0 = U0)
  * */
 void Burgers2P::SetInitialVelocity() {
-    // MPI Parameters
-    int loc_rank = model->GetRank();
-
     // Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
     double x0 = model->GetX0();
     double y0 = model->GetY0();
     double dx = model->GetDx();
     double dy = model->GetDy();
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    int displ_x = model->GetDisplX();
+    int displ_y = model->GetDisplY();
 
-    // Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    // Split x domain into 2
-    int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
-    double* loc_U0 = new double[Nyr*loc_Nxr];
-    int* recvcounts = new int[2];
-    int* displs = new int[2];
-    recvcounts[0] = Nyr*((Nxr/2)+1); recvcounts[1] = Nyr*(Nxr/2);
-    displs[0] = 0; displs[1] = recvcounts[0];
-
-    // Compute loc_U0 for half domain
-    for (int i = 0; i < loc_Nxr; i++) {
-        for (int j = 0; j < Nyr; j++) {
-            double y = y0 - (j+1)*dy;
-            // offset = 1 for proc 0; offset = 2 for proc 1 (1+1)
-            double x = (loc_rank == 0)? x0 + (i+1)*dx : x0 + (loc_rank*loc_Nxr+i+2)*dx;
-            double r = ComputeR(x, y);
-            loc_U0[i*Nyr+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
-        }
-    }
-
-    // Gather result
     U0 = nullptr;
     U0 = new double[Nyr*Nxr];
 
-    MPI_Allgatherv(loc_U0, Nyr*loc_Nxr, MPI_DOUBLE, U0, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
+    // Compute U0
+    // Memory layout in column-major format
+    double loc_x0 = x0 + (displ_x+1)*dx;
+    double loc_y0 = y0 - (displ_y+1)*dy;
+    for (int i = 0; i < Nxr; i++) {
+        for (int j = 0; j < Nyr; j++) {
+            double x = loc_x0 + i*dx;
+            double y = loc_y0 - j*dy;
+            double r = ComputeR(x, y);
+            U0[i*Nyr+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
+        }
+    }
 
-    delete[] loc_U0;
-    delete[] recvcounts;
-    delete[] displs;
+    // Gathering happens later
+    // MPI_Allgatherv(loc_U0, Nyr*loc_Nxr, MPI_DOUBLE, U0, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 }
 
 /**

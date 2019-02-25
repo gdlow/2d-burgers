@@ -38,6 +38,8 @@ public:
     int GetRank()      const { return loc_rank; }
     int GetLocNxr();
     int GetLocNyr();
+    int GetDisplX();
+    int GetDisplY();
 
 private:
     void ParseParameters(int argc, char* argv[]);

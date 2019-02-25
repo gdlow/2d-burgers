@@ -179,3 +179,11 @@ int Model::GetLocNxr() {
 int Model::GetLocNyr() {
     return loc_Nyr[loc_coord[0]];
 }
+
+int Model::GetDisplX() {
+    return displs_x[loc_coord[1]];
+}
+
+int Model::GetDisplY() {
+    return displs_y[loc_coord[0]];
+}
