@@ -83,7 +83,7 @@ void Burgers2P::SetInitialVelocity() {
         }
     }
 
-    // Gathering happens later
+    // Gathering occurs only in writing to file
     // MPI_Allgatherv(loc_U0, Nyr*loc_Nxr, MPI_DOUBLE, U0, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 }
 
