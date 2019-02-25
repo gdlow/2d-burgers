@@ -33,6 +33,7 @@ public:
     // Add any other getters here...
 
     // MPI parameters
+    bool Is_Model_Parallel() const { return Is_Parallel; }
     int GetP()         const { return p; }
     int GetRank()      const { return loc_rank; }
 
@@ -70,6 +71,7 @@ private:
     // Add any additional parameters here...
 
     // MPI Parameters
+    bool Is_Parallel;
     int p;
     int loc_rank;
 };

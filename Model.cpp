@@ -16,9 +16,11 @@ using namespace std;
 Model::Model(int argc, char** argv) {
     try {
         ParseParameters(argc, argv);
-        MPI_Init(&argc, &argv);
-        MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
-        MPI_Comm_size(MPI_COMM_WORLD, &p);
+        if (Is_Parallel) {
+            MPI_Init(&argc, &argv);
+            MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
+            MPI_Comm_size(MPI_COMM_WORLD, &p);
+        }
     } catch (IllegalArgumentException &e) {
         cout << e.what() << endl;
     }
@@ -27,7 +29,7 @@ Model::Model(int argc, char** argv) {
 }
 
 Model::~Model() {
-    MPI_Finalize();
+    if (Is_Parallel) MPI_Finalize();
 }
 
 /**
@@ -42,6 +44,7 @@ void Model::ParseParameters(int argc, char **argv) {
         Lx = atof(argv[5]);
         Ly = atof(argv[6]);
         T = atof(argv[7]);
+        Is_Parallel = atoi(argv[8]);
         // Last parameter for choosing Serial (0) or Parallel (1)
         cout << "Parameters saved successfully." << endl;
     }
