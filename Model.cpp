@@ -16,17 +16,16 @@ using namespace std;
 Model::Model(int argc, char** argv) {
     try {
         ParseParameters(argc, argv);
-        if (Is_Parallel) {
-            MPI_Init(&argc, &argv);
-            MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
-            MPI_Comm_size(MPI_COMM_WORLD, &p);
-            SetGridParameters();
-        }
     } catch (IllegalArgumentException &e) {
         cout << e.what() << endl;
     }
-    // validate then SetNumerics
     ValidateParameters();
+    if (Is_Parallel) {
+        MPI_Init(&argc, &argv);
+        MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &p);
+        SetGridParameters();
+    }
 }
 
 Model::~Model() {
@@ -47,7 +46,7 @@ Model::~Model() {
  * Parses parameters from command line into program
  * */
 void Model::ParseParameters(int argc, char **argv) {
-    if (argc == 9) {
+    if (argc == 8 || argc == 10) {
         ax = atof(argv[1]);
         ay = atof(argv[2]);
         b = atof(argv[3]);
@@ -55,8 +54,12 @@ void Model::ParseParameters(int argc, char **argv) {
         Lx = atof(argv[5]);
         Ly = atof(argv[6]);
         T = atof(argv[7]);
-        Is_Parallel = atoi(argv[8]);
-        // Last parameter for choosing Serial (0) or Parallel (1)
+        if (argc == 10) {
+            Px = atoi(argv[8]);
+            Py = atoi(argv[9]);
+            Is_Parallel = true;
+        }
+        else Is_Parallel = false;
         cout << "Parameters saved successfully." << endl;
     }
     else throw illegalArgumentException;
@@ -66,7 +69,7 @@ void Model::ParseParameters(int argc, char **argv) {
  * Prints model parameters
  * */
 void Model::PrintParameters() {
-    if (loc_rank == 0) {
+    if (loc_rank == 0 || !Is_Parallel) {
         cout << "ax: " << ax << endl;
         cout << "ay: " << ay << endl;
         cout << "b: " << b << endl;
@@ -74,6 +77,10 @@ void Model::PrintParameters() {
         cout << "Lx: " << Lx << endl;
         cout << "Ly: " << Ly << endl;
         cout << "T: " << T << endl;
+        if (Is_Parallel) {
+            cout << "Px: " << Px << endl;
+            cout << "Py: " << Py << endl;
+        }
     }
 }
 
@@ -106,46 +113,40 @@ void Model::SetNumerics() {
 }
 
 void Model::SetGridParameters() {
-    int Ny_f = 201;
-    int Nx_f = 201;
-    // Px, Py to be redefined as instance variables
-    // parsed into command line
-    int Px = 10;
-    int Py = 10;
+    // Reduced parameters
+    int Nxr = Nx - 2;
+    int Nyr = Ny - 2;
 
     loc_Nxr = new int[Px];
     loc_Nyr = new int[Py];
     displs_x = new int[Px];
     displs_y = new int[Py];
-
-    // Reduced parameters
-    int Nxr = Nx_f - 2;
-    int Nyr = Ny_f - 2;
+    int rem, sum;
 
     // Define subcols and displs along x
-    int rem_x = Nxr % Px;
-    int sum_x = 0;
+    rem = Nxr % Px;
+    sum = 0;
     for (int i = 0; i < Px; i++) {
         loc_Nxr[i] = Nxr / Px;
-        if (rem_x > 0) {
+        if (rem > 0) {
             loc_Nxr[i]++;
-            rem_x--;
+            rem--;
         }
-        displs_x[i] = sum_x;
-        sum_x += loc_Nxr[i];
+        displs_x[i] = sum;
+        sum += loc_Nxr[i];
     }
 
     // Define subcols and displs along y
-    int rem_y = Nyr % Py;
-    int sum_y = 0;
+    rem = Nyr % Py;
+    sum = 0;
     for (int i = 0; i < Py; i++) {
         loc_Nyr[i] = Nyr / Py;
-        if (rem_y > 0) {
+        if (rem > 0) {
             loc_Nyr[i]++;
-            rem_y--;
+            rem--;
         }
-        displs_y[i] = sum_y;
-        sum_y += loc_Nyr[i];
+        displs_y[i] = sum;
+        sum += loc_Nyr[i];
     }
 
     // Print result

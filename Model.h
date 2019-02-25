@@ -76,6 +76,8 @@ private:
     bool Is_Parallel;
     int p;
     int loc_rank;
+    int Px;
+    int Py;
     int* loc_Nxr;
     int* loc_Nyr;
     int* displs_x;

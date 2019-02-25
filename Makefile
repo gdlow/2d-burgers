@@ -18,29 +18,29 @@ compile: $(OBJS)
 all: compile
 
 diff: compile
-	./compile 0 0 0 1 10 10 1 0
+	./compile 0 0 0 1 10 10 1
 
 advx: compile
-	./compile 1 0 0 0 10 10 1 0
+	./compile 1 0 0 0 10 10 1
 
 advy: compile
-	./compile 0 1 0 0 10 10 1 0
+	./compile 0 1 0 0 10 10 1
 
 burg: compile
-	./compile 1.0 0.5 1.0 0.02 10 10 1 0
+	./compile 1.0 0.5 1.0 0.02 10 10 1
 
 ## For running MPI processes
 diffp: compile
-	mpiexec -np 2 ./compile 0 0 0 1 10 10 1 1
+	mpiexec -np 2 ./compile 0 0 0 1 10 10 1 2 1
 
 advxp: compile
-	mpiexec -np 2 ./compile 1 0 0 0 10 10 1 1
+	mpiexec -np 2 ./compile 1 0 0 0 10 10 1 2 1
 
 advyp: compile
-	mpiexec -np 2 ./compile 0 1 0 0 10 10 1 1
+	mpiexec -np 2 ./compile 0 1 0 0 10 10 1 2 1
 
 burgp: compile
-	mpiexec -np 2 ./compile 1.0 0.5 1.0 0.02 10 10 1 1
+	mpiexec -np 2 ./compile 1.0 0.5 1.0 0.02 10 10 1 2 1
 
 .PHONY: clean
 clean:
