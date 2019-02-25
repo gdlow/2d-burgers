@@ -166,10 +166,26 @@ void Model::SetCartesianGrid() {
     // Set local coordinates
     MPI_Cart_coords(vu, loc_rank, 2, loc_coord);
 
+    // Set neighbours
+    SetNeighbours();
+
     // Print loc_rank, coordinates, local Nxr and Nyr
     cout << "Rank: " << loc_rank << endl;
     cout << "Coordinates: (" << loc_coord[0] << "," << loc_coord[1] << ")" << endl;
     cout << "Nyr, Nxr: (" << GetLocNyr() << "," << GetLocNxr() << ")" << endl;
+}
+
+void Model::SetNeighbours() {
+    MPI_Cart_shift(vu, 0, 1, &up, &down);
+    MPI_Cart_shift(vu, 1, 1, &left, &right);
+}
+
+int Model::GetCoordX() {
+    return loc_coord[1];
+}
+
+int Model::GetCoordY() {
+    return loc_coord[0];
 }
 
 int Model::GetLocNxr() {
@@ -187,3 +203,4 @@ int Model::GetDisplX() {
 int Model::GetDisplY() {
     return displs_y[loc_coord[0]];
 }
+

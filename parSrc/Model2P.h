@@ -30,12 +30,21 @@ public:
     double GetAy()     const { return ay; }
     double GetB()      const { return b; }
     double GetC()      const { return c; }
+    MPI_Comm GetComm()       { return vu; }
 
     // Add any other getters here...
 
     // MPI parameters
     int GetP()         const { return p; }
     int GetRank()      const { return loc_rank; }
+    int GetPx()        const { return Px; }
+    int GetPy()        const { return Py; }
+    int GetUp()        const { return up; }
+    int GetDown()      const { return down; }
+    int GetLeft()      const { return left; }
+    int GetRight()     const { return right; }
+    int GetCoordX();
+    int GetCoordY();
     int GetLocNxr();
     int GetLocNyr();
     int GetDisplX();
@@ -49,6 +58,7 @@ private:
     void SetNumerics();
     void SetGridParameters();
     void SetCartesianGrid();
+    void SetNeighbours();
 
     bool verbose;
     bool help;
@@ -88,6 +98,7 @@ private:
     int* displs_x;
     int* displs_y;
     MPI_Comm vu;
+    int up, down, left, right;
 };
 
 #endif //CLASS_MODEL2P

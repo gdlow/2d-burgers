@@ -64,8 +64,7 @@ double** transpose(double** A, int N, int M) {
  * alpha takes on the leading diagonal
  * beta takes on the banded row above and below
  * */
-double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
-    double* M = new double[Nyr*Nxr]; // Column-major format (symmetric anyway)
+void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
     for (int i = 0; i < Nyr*Nxr; i++) {
         M[i] = 0;
     }
@@ -74,7 +73,6 @@ double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
         M[i*Nyr+i] = alpha;
         if (i<Nxr-1) M[i*Nyr+(i+1)] = beta;
     }
-    return M;
 }
 
 /**
@@ -83,8 +81,7 @@ double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
  * alpha takes on the leading diagonal
  * beta takes on the banded row above (UPPER) or below
  * */
-double* GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER) {
-    double* M = new double[Nyr*Nxr];
+void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M) {
     for (int i = 0; i < Nyr*Nxr; i++) {
         M[i] = 0;
     }
@@ -93,7 +90,6 @@ double* GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER) {
         M[i*Nyr+i] = alpha;
         if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
     }
-    return M;
 }
 
 /**
@@ -123,3 +119,8 @@ double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool off
     return M;
 }
 
+void SetZeroes(double* arr, int sz) {
+    for (int i = 0; i < sz; i++) {
+        arr[i] = 0;
+    }
+}

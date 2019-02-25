@@ -12,9 +12,56 @@ using namespace std;
 /**
  * Constructor: Accepts a Model instance pointer as input
  * Sets it as an instance variable
+ * Allocates memory to all other instance variables
  * */
 Burgers2P::Burgers2P(Model &m) {
+    // Set model class pointer as instance variable
     model = &m;
+
+    // Get model parameters
+    int Nt = model->GetNt();
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+
+    /* Allocate memory to instance variables */
+
+    // U0
+    U0 = nullptr;
+    U0 = new double[Nyr*Nxr];
+
+    // Matrix coefficients
+    dVel_dx_2_coeffs = nullptr;
+    dVel_dy_2_coeffs = nullptr;
+    dVel_dx_coeffs = nullptr;
+    dVel_dy_coeffs = nullptr;
+    dVel_dx_2_coeffs = new double[Nyr*Nxr];
+    dVel_dy_2_coeffs = new double[Nyr*Nxr];
+    dVel_dx_coeffs = new double[Nyr*Nxr];
+    dVel_dy_coeffs = new double[Nyr*Nxr];
+
+    // Caches
+    upVel = nullptr;
+    downVel = nullptr;
+    leftVel = nullptr;
+    rightVel = nullptr;
+    upVel = new double[Nxr];
+    downVel = new double[Nxr];
+    leftVel = new double[Nyr];
+    rightVel = new double[Nyr];
+
+    // U, V
+    U = nullptr;
+    V = nullptr;
+    U = new double*[Nt];
+    V = new double*[Nt];
+    // U[0] = V[0] = U0 :: SetInitialVelocity()
+    for (int k = 1; k < Nt; k++) {
+        U[k] = new double[Nyr*Nxr];
+    }
+
+    // E
+    E = nullptr;
+    E = new double[Nt];
 }
 
 /**
@@ -24,14 +71,9 @@ Burgers2P::~Burgers2P() {
     // Get model parameters
     int Nt = model->GetNt();
 
-    // Delete matrix coefficients
-    delete[] dVel_dx_2_coeffs;
-    delete[] dVel_dy_2_coeffs;
-    delete[] dVel_dx_coeffs;
-    delete[] dVel_dy_coeffs;
-
-    // Delete Cache
-    delete[] Vel_c;
+    // Delete E
+    delete[] E;
+    E = nullptr;
 
     // Delete U and V
     for (int k = 1; k < Nt; k++) {
@@ -39,16 +81,34 @@ Burgers2P::~Burgers2P() {
         delete[] U[k];
         delete[] V[k];
     }
-    delete[] U; delete[] V;
-    U = nullptr; V = nullptr;
+    delete[] U;
+    delete[] V;
+    U = nullptr;
+    V = nullptr;
+
+    // Delete Caches
+    delete[] upVel;
+    delete[] downVel;
+    delete[] leftVel;
+    delete[] rightVel;
+    upVel = nullptr;
+    downVel = nullptr;
+    leftVel = nullptr;
+    rightVel = nullptr;
+
+    // Delete matrix coefficients
+    delete[] dVel_dx_2_coeffs;
+    delete[] dVel_dy_2_coeffs;
+    delete[] dVel_dx_coeffs;
+    delete[] dVel_dy_coeffs;
+    dVel_dx_2_coeffs = nullptr;
+    dVel_dy_2_coeffs = nullptr;
+    dVel_dx_coeffs = nullptr;
+    dVel_dy_coeffs = nullptr;
 
     // Delete U0
     delete[] U0;
     U0 = nullptr;
-
-    // Delete E
-    delete[] E;
-    E = nullptr;
 
     // model is not dynamically alloc
 }
@@ -66,9 +126,6 @@ void Burgers2P::SetInitialVelocity() {
     int Nxr = model->GetLocNxr();
     int displ_x = model->GetDisplX();
     int displ_y = model->GetDisplY();
-
-    U0 = nullptr;
-    U0 = new double[Nyr*Nxr];
 
     // Compute U0
     // Memory layout in column-major format
@@ -93,25 +150,15 @@ void Burgers2P::SetInitialVelocity() {
 void Burgers2P::SetIntegratedVelocity() {
     // Get model parameters
     int Nt = model->GetNt();
-    int Ny = model->GetNy();
-
-    // Reduced parameters
-    int Nyr = Ny - 2;
-
-    // Generate U, V
-    U = nullptr; V = nullptr;
-    U = new double*[Nt]; V = new double*[Nt];
-
-    // Set initial velocity field
-    U[0] = U0; V[0] = U0;
+    int Nyr = model->GetLocNyr();
 
     // Set Matrix Coefficients
     SetMatrixCoefficients();
 
-    // Allocate cache memory
-    Vel_c = new double[Nyr];
 
     // Compute U, V for every step k
+    U[0] = U0;
+    V[0] = U0;
     for (int k = 0; k < Nt-1; k++) {
         U[k+1] = NextVelocityState(U[k], V[k], true);
         V[k+1] = NextVelocityState(U[k], V[k], false);
@@ -196,8 +243,6 @@ void Burgers2P::SetEnergy() {
     int Nt = model->GetNt();
 
     // Calculate Energy
-    E = nullptr;
-    E = new double[Nt];
     for (int k = 0; k < Nt; k++) {
         E[k] = NextEnergyState(U[k], V[k]);
     }
@@ -386,30 +431,20 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
  * Sets matrix coefficients for differentials
  * */
 void Burgers2P::SetMatrixCoefficients() {
-    // MPI Parameters
-    int loc_rank = model->GetRank();
-
     // Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
     double dx = model->GetDx();
     double dy = model->GetDy();
     double ax = model->GetAx();
     double ay = model->GetAy();
     double c = model->GetC();
 
-    // Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    // Split x domain into 2
-    int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
-
-    // Generate and set coefficients
-    dVel_dx_2_coeffs = GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), loc_Nxr, loc_Nxr);
-    dVel_dy_2_coeffs = GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr);
-    dVel_dx_coeffs = GenTrmm(ax/dx, -ax/dx, loc_Nxr, loc_Nxr, true);
-    dVel_dy_coeffs = GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false);
+    // Set coefficients
+    GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr, dVel_dx_2_coeffs);
+    GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr, dVel_dy_2_coeffs);
+    GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true, dVel_dx_coeffs);
+    GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false, dVel_dy_coeffs);
 }
 
 double Burgers2P::ComputeR(double x, double y) {
@@ -418,8 +453,6 @@ double Burgers2P::ComputeR(double x, double y) {
 }
 
 void Burgers2P::SetCache(double* Vel, double* Cache) {
-    // Cache should be allocated Nyr memory before this is run
-
     // MPI Parameters
     int loc_rank = model->GetRank();
 
@@ -441,3 +474,67 @@ void Burgers2P::SetCache(double* Vel, double* Cache) {
         Cache[j] = Vel[loc_Nxr*Nyr+j];
     }
 }
+
+void Burgers2P::SetCaches(double* Vel) {
+    // Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    int x_coord = model->GetCoordX();
+    int y_coord = model->GetCoordY();
+
+    // Get ranks
+    int loc_rank = model->GetRank();
+    int up = model->GetUp();
+    int down = model->GetDown();
+    int left = model->GetLeft();
+    int right = model->GetRight();
+
+
+    // Get communicator
+    MPI_Comm vu = model->GetComm();
+    int flag;
+
+    // Allocate memory into Vel for local bounds
+    double* myUpVel = new double[Nxr];
+    double* myDownVel = new double[Nxr];
+    double* myLeftVel = new double[Nyr];
+    double* myRightVel = new double[Nyr];
+
+    // Get Vel bounds for this sub-matrix
+    for (int i = 0; i < Nxr; i++) {
+        myUpVel[i] = Vel[i*Nyr];
+        myDownVel[i] = Vel[i*Nyr+(Nyr-1)];
+    }
+    for (int j = 0; j < Nyr; j++) {
+        myLeftVel[j] = Vel[j];
+        myRightVel[j] = Vel[(Nxr-1)*Nyr+j];
+    }
+
+    // Exchange up/down
+    flag = 0;
+    /* Send down boundary to down and receive into up boundary */
+    MPI_Sendrecv(myDownVel, Nxr, MPI_DOUBLE, down, flag, upVel, Nxr, MPI_DOUBLE, up, flag, vu, MPI_STATUS_IGNORE);
+    /* Send up boundary to up and receive into down boundary */
+    MPI_Sendrecv(upVel, Nxr, MPI_DOUBLE, up, flag, downVel, Nxr, MPI_DOUBLE, down, flag, vu, MPI_STATUS_IGNORE);
+
+    // Exchange left/right
+    flag = 1;
+    /* Send right boundary to right and receive into left boundary */
+    MPI_Sendrecv(myRightVel, Nyr, MPI_DOUBLE, right, flag, leftVel, Nyr, MPI_DOUBLE, left, flag, vu, MPI_STATUS_IGNORE);
+    /* Send left boundary to left and receive into right boundary */
+    MPI_Sendrecv(myLeftVel, Nyr, MPI_DOUBLE, left, flag, rightVel, Nyr, MPI_DOUBLE, right, flag, vu, MPI_STATUS_IGNORE);
+
+    // Handle boundaries
+    if (up < 0) SetZeroes(upVel, Nxr);
+    if (down < 0) SetZeroes(downVel, Nxr);
+    if (left < 0) SetZeroes(leftVel, Nyr);
+    if (right < 0) SetZeroes(rightVel, Nyr);
+
+    delete[] myUpVel;
+    delete[] myDownVel;
+    delete[] myLeftVel;
+    delete[] myRightVel;
+}
+
+void Burgers2P::UpdateBounds() {}
+
