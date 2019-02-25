@@ -43,6 +43,8 @@ private:
 
     // Private Setters
     void SetNumerics();
+    void SetGridParameters();
+
     bool verbose;
     bool help;
 
@@ -74,6 +76,10 @@ private:
     bool Is_Parallel;
     int p;
     int loc_rank;
+    int* loc_Nxr;
+    int* loc_Nyr;
+    int* displs_x;
+    int* displs_y;
 };
 
 #endif //CLASS_MODEL
