@@ -20,33 +20,33 @@ Model::Model(int argc, char** argv) {
         cout << e.what() << endl;
     }
     ValidateParameters();
-    if (Is_Parallel) {
-        MPI_Init(&argc, &argv);
-        MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
-        MPI_Comm_size(MPI_COMM_WORLD, &p);
-        SetGridParameters();
-    }
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &loc_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    SetGridParameters();
+    SetCartesianGrid();
 }
 
 Model::~Model() {
-    if (Is_Parallel) {
-        delete[] loc_Nxr;
-        delete[] loc_Nyr;
-        delete[] displs_x;
-        delete[] displs_y;
-        loc_Nxr = nullptr;
-        loc_Nyr = nullptr;
-        displs_x = nullptr;
-        displs_y = nullptr;
-        MPI_Finalize();
-    }
+    delete[] loc_coord;
+    delete[] loc_Nxr;
+    delete[] loc_Nyr;
+    delete[] displs_x;
+    delete[] displs_y;
+    loc_coord = nullptr;
+    loc_Nxr = nullptr;
+    loc_Nyr = nullptr;
+    displs_x = nullptr;
+    displs_y = nullptr;
+    MPI_Finalize();
 }
 
 /**
  * Parses parameters from command line into program
  * */
 void Model::ParseParameters(int argc, char **argv) {
-    if (argc == 8 || argc == 10) {
+    if (argc == 10) {
         ax = atof(argv[1]);
         ay = atof(argv[2]);
         b = atof(argv[3]);
@@ -54,12 +54,8 @@ void Model::ParseParameters(int argc, char **argv) {
         Lx = atof(argv[5]);
         Ly = atof(argv[6]);
         T = atof(argv[7]);
-        if (argc == 10) {
-            Px = atoi(argv[8]);
-            Py = atoi(argv[9]);
-            Is_Parallel = true;
-        }
-        else Is_Parallel = false;
+        Px = atoi(argv[8]);
+        Py = atoi(argv[9]);
         cout << "Parameters saved successfully." << endl;
     }
     else throw illegalArgumentException;
@@ -69,7 +65,7 @@ void Model::ParseParameters(int argc, char **argv) {
  * Prints model parameters
  * */
 void Model::PrintParameters() {
-    if (loc_rank == 0 || !Is_Parallel) {
+    if (loc_rank == 0) {
         cout << "ax: " << ax << endl;
         cout << "ay: " << ay << endl;
         cout << "b: " << b << endl;
@@ -77,10 +73,8 @@ void Model::PrintParameters() {
         cout << "Lx: " << Lx << endl;
         cout << "Ly: " << Ly << endl;
         cout << "T: " << T << endl;
-        if (Is_Parallel) {
-            cout << "Px: " << Px << endl;
-            cout << "Py: " << Py << endl;
-        }
+        cout << "Px: " << Px << endl;
+        cout << "Py: " << Py << endl;
     }
 }
 
@@ -153,7 +147,7 @@ void Model::SetGridParameters() {
     if (loc_rank == 0) {
         for (int j = 0; j < Py; j++) {
             for (int i = 0; i < Px; i++) {
-                cout << "(" << loc_Nxr[i] << "," << loc_Nyr[j] << ")" << ' ';
+                cout << "(" << loc_Nyr[j] << "," << loc_Nxr[i] << ")" << ' ';
             }
             cout << endl;
         }
@@ -161,12 +155,27 @@ void Model::SetGridParameters() {
 }
 
 void Model::SetCartesianGrid() {
+    int dim[2] = {Py, Px};
+    int period[2] = {0,0};
+    int reorder = 1;
+    loc_coord = new int[2];
+
+    // Create cartesian grid of processes
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dim, period, reorder, &vu);
+
+    // Set local coordinates
+    MPI_Cart_coords(vu, loc_rank, 2, loc_coord);
+
+    // Print loc_rank, coordinates, local Nxr and Nyr
+    cout << "Rank: " << loc_rank << endl;
+    cout << "Coordinates: (" << loc_coord[0] << "," << loc_coord[1] << ")" << endl;
+    cout << "Nyr, Nxr: (" << GetLocNyr() << "," << GetLocNxr() << ")" << endl;
 }
 
 int Model::GetLocNxr() {
-    return 0;
+    return loc_Nxr[loc_coord[1]];
 }
 
 int Model::GetLocNyr() {
-    return 0;
+    return loc_Nyr[loc_coord[0]];
 }

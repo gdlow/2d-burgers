@@ -1,6 +1,7 @@
 #ifndef CLASS_MODEL2P
 #define CLASS_MODEL2P
 
+#include <mpi.h>
 
 class Model {
 public:
@@ -33,7 +34,6 @@ public:
     // Add any other getters here...
 
     // MPI parameters
-    bool Is_Model_Parallel() const { return Is_Parallel; }
     int GetP()         const { return p; }
     int GetRank()      const { return loc_rank; }
     int GetLocNxr();
@@ -76,15 +76,16 @@ private:
     // Add any additional parameters here...
 
     // MPI Parameters
-    bool Is_Parallel;
     int p;
     int loc_rank;
     int Px;
     int Py;
+    int* loc_coord;
     int* loc_Nxr;
     int* loc_Nyr;
     int* displs_x;
     int* displs_y;
+    MPI_Comm vu;
 };
 
 #endif //CLASS_MODEL2P
