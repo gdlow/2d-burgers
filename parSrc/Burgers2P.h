@@ -1,7 +1,7 @@
 #ifndef CLASS_BURGERS2P
 #define CLASS_BURGERS2P
 
-#include "Model.h"
+#include "Model2P.h"
 
 class Burgers2P {
 public:

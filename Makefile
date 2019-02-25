@@ -1,22 +1,36 @@
+# Compilers and flags
 CXX = g++
 MPIXX = mpicxx
 CXXFLAGS = -std=c++11 -Wall -O2
 LDLIBS = -lblas
 
-HDRS = Burgers2P.h Burgers.h Model.h Helpers.h
-SRC = main.cpp Burgers2P.cpp Burgers.cpp Model.cpp Helpers.cpp
-OBJS = $(SRC:.cpp=.o)
+# Serial variables
+DIR_SER = serSrc
+HDRS_SER = Burgers.h Model.h Helpers.h
+SRC_SER = serialEntryPoint.cpp Burgers.cpp Model.cpp Helpers.cpp
+OBJS_SER = $(addprefix $(DIR_SER)/,$(SRC_SER:.cpp=.o))
 
-default: compile
+# Parallel variables
+DIR_PAR = parSrc
+HDRS_PAR = Burgers2P.h Model2P.h Helpers.h
+SRC_PAR = parallelEntryPoint.cpp Burgers2P.cpp Model2P.cpp Helpers.cpp
+OBJS_PAR = $(addprefix $(DIR_PAR)/,$(SRC_PAR:.cpp=.o))
 
-%.o: %.cpp $(HDRS)
+# Build serial code
+$(DIR_SER)/%.o: %.cpp $(HDRS)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+compile: $(OBJS_SER)
+	$(CXX) -o $@ $^ $(LDLIBS)
+
+# Build parallel code
+$(DIR_PAR)/%.o: %.cpp $(HDRS)
 	$(MPIXX) $(CXXFLAGS) -o $@ -c $<
 
-compile: $(OBJS)
+compilep: $(OBJS_PAR)
 	$(MPIXX) -o $@ $^ $(LDLIBS)
 
-all: compile
-
+# Serial targets
 diff: compile
 	./compile 0 0 0 1 10 10 1
 
@@ -29,19 +43,24 @@ advy: compile
 burg: compile
 	./compile 1.0 0.5 1.0 0.02 10 10 1
 
-## For running MPI processes
-diffp: compile
-	mpiexec -np 2 ./compile 0 0 0 1 10 10 1 2 1
+## Parallel targets (-np = 2)
+diffp: compilep
+	mpiexec -np 2 ./compilep 0 0 0 1 10 10 1 2 1
 
-advxp: compile
-	mpiexec -np 2 ./compile 1 0 0 0 10 10 1 2 1
+advxp: compilep
+	mpiexec -np 2 ./compilep 1 0 0 0 10 10 1 2 1
 
-advyp: compile
-	mpiexec -np 2 ./compile 0 1 0 0 10 10 1 2 1
+advyp: compilep
+	mpiexec -np 2 ./compilep 0 1 0 0 10 10 1 2 1
 
-burgp: compile
-	mpiexec -np 2 ./compile 1.0 0.5 1.0 0.02 10 10 1 2 1
+burgp: compilep
+	mpiexec -np 2 ./compilep 1.0 0.5 1.0 0.02 10 10 1 2 1
+
+# Misc
+default: compile
+
+all: compile compilep
 
 .PHONY: clean
 clean:
-	rm -f *.o compile
+	rm -f $(DIR_SER)/*.o $(DIR_PAR)/*.o compile compilep

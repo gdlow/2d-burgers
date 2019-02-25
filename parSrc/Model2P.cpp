@@ -1,6 +1,6 @@
 #include <iostream>
 #include <mpi.h>
-#include "Model.h"
+#include "Model2P.h"
 #include "ParseException.h"
 
 /**
@@ -158,4 +158,15 @@ void Model::SetGridParameters() {
             cout << endl;
         }
     }
+}
+
+void Model::SetCartesianGrid() {
+}
+
+int Model::GetLocNxr() {
+    return 0;
+}
+
+int Model::GetLocNyr() {
+    return 0;
 }

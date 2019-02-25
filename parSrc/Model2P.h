@@ -1,5 +1,5 @@
-#ifndef CLASS_MODEL
-#define CLASS_MODEL
+#ifndef CLASS_MODEL2P
+#define CLASS_MODEL2P
 
 
 class Model {
@@ -36,6 +36,8 @@ public:
     bool Is_Model_Parallel() const { return Is_Parallel; }
     int GetP()         const { return p; }
     int GetRank()      const { return loc_rank; }
+    int GetLocNxr();
+    int GetLocNyr();
 
 private:
     void ParseParameters(int argc, char* argv[]);
@@ -44,6 +46,7 @@ private:
     // Private Setters
     void SetNumerics();
     void SetGridParameters();
+    void SetCartesianGrid();
 
     bool verbose;
     bool help;
@@ -84,4 +87,4 @@ private:
     int* displs_y;
 };
 
-#endif //CLASS_MODEL
+#endif //CLASS_MODEL2P
