@@ -150,7 +150,6 @@ void Burgers2P::SetInitialVelocity() {
 void Burgers2P::SetIntegratedVelocity() {
     // Get model parameters
     int Nt = model->GetNt();
-    int Nyr = model->GetLocNyr();
 
     // Set Matrix Coefficients
     SetMatrixCoefficients();
@@ -295,126 +294,77 @@ double Burgers2P::NextEnergyState(double* Ui, double* Vi) {
  * Computes and returns next velocity state based on previous inputs
  * */
 double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
-    // MPI Parameters
-    int loc_rank = model->GetRank();
-    int* sendcounts = new int[2];
-    int* displs = new int[2];
-
     // Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
     double dt = model->GetDt();
     double dx = model->GetDx();
     double dy = model->GetDy();
     double b = model->GetB();
-    double ax = model->GetAx();
-    double c = model->GetC();
-
-    // Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    // Split x domain into 2
-    int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
-
-    sendcounts[0] = Nyr*((Nxr/2)+1); sendcounts[1] = Nyr*(Nxr/2);
-    displs[0] = 0; displs[1] = sendcounts[0];
 
     // Set aliases for computation
     double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
 
-    // Local MPI Vel arrays
-    double* loc_Vel = new double[Nyr*loc_Nxr];
-    double* loc_Other = new double[Nyr*loc_Nxr];
-    double* loc_NextVel = new double[Nyr*loc_Nxr];
+    // Set caches for Vel
+    SetCaches(Vel);
 
-    // Set cache for Vel and Other
-    SetCache(Vel, Vel_c);
-
-    MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // No need for scatterv because you are working on a sub-part of the matrix
+    // MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    // MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     // Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
-    double* dVel_dx_2 = new double[Nyr*loc_Nxr];
-    double* dVel_dy_2 = new double[Nyr*loc_Nxr];
-    double* dVel_dx = new double[Nyr*loc_Nxr];
-    double* dVel_dy = new double[Nyr*loc_Nxr];
+    double* dVel_dx_2 = new double[Nyr*Nxr];
+    double* dVel_dy_2 = new double[Nyr*Nxr];
+    double* dVel_dx = new double[Nyr*Nxr];
+    double* dVel_dy = new double[Nyr*Nxr];
     double* Vel_Vel = nullptr;
     double* Vel_Other = nullptr;
     double* Vel_Vel_Minus_1 = nullptr;
     double* Vel_Other_Minus_1 = nullptr;
 
     // Compute second derivatives
-    F77NAME(dsymm)('R', 'U', Nyr, loc_Nxr, 1.0, dVel_dx_2_coeffs, loc_Nxr, loc_Vel, Nyr, 0.0, dVel_dx_2, Nyr);
-    F77NAME(dsymm)('L', 'U', Nyr, loc_Nxr, 1.0, dVel_dy_2_coeffs, Nyr, loc_Vel, Nyr, 0.0, dVel_dy_2, Nyr);
+    F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nyr, 0.0, dVel_dx_2, Nyr);
+    F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
 
     // Compute first derivatives
-    F77NAME(dcopy)(Nyr*loc_Nxr, loc_Vel, 1, dVel_dx, 1);
-    F77NAME(dcopy)(Nyr*loc_Nxr, loc_Vel, 1, dVel_dy, 1);
-    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, loc_Nxr, 1.0, dVel_dx_coeffs, loc_Nxr, dVel_dx, Nyr);
-    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, loc_Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
-
-    // Modify arrays based on cache values
-    for (int j = 0; j < Nyr; j++) {
-        if (loc_rank==0) {
-            // LHS: Fix last col
-            dVel_dx_2[(loc_Nxr-1)*Nyr+j] += c/pow(dx,2.0)*Vel_c[j];
-        }
-        else {
-            // RHS: Fix first col
-            dVel_dx_2[j] += c/pow(dx,2.0)*Vel_c[j];
-            dVel_dx[j] -= ax/dx*Vel_c[j];
-        }
-    }
+    F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
+    F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
+    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
+    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
     // Compute b terms
-    if (SELECT_U == true) {
-        Vel_Vel = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, false, false, b/dx);
-        Vel_Other = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, false, false, b/dy);
-        Vel_Vel_Minus_1 = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, true, false, b/dx);
-        Vel_Other_Minus_1 = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, false, true, b/dy);
+    if (SELECT_U) {
+        Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dx);
+        Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dy);
+        Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, true, false, b/dx);
+        Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, false, true, b/dy);
 
-        // Modify Vel_Vel_Minus_1 to include previous cache
-        // Fix first col
-        if (loc_rank == 1) {
-            for (int i = 0; i < Nyr; i++) {
-                Vel_Vel_Minus_1[i] = b/dx * Vel_c[i] * loc_Vel[i];
-            }
-        }
+
     }
     else {
-        Vel_Vel = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, false, false, b/dy);
-        Vel_Other = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, false, false, b/dx);
-        Vel_Vel_Minus_1 = MatMul(loc_Vel, loc_Vel, Nyr, loc_Nxr, false, true, b/dy);
-        Vel_Other_Minus_1 = MatMul(loc_Vel, loc_Other, Nyr, loc_Nxr, true, false, b/dx);
-
-        // Modify Vel_Other_Minus_1 to include previous cache
-        // Fix first col
-        if (loc_rank == 1) {
-            for (int i = 0; i < Nyr; i++) {
-                Vel_Other_Minus_1[i] = b/dx * Vel_c[i] * loc_Other[i];
-            }
-        }
+        Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dy);
+        Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dx);
+        Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, false, true, b/dy);
+        Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, true, false, b/dx);
     }
+
+    UpdateBoundsLinear(dVel_dx_2, dVel_dy_2, dVel_dx, dVel_dy);
+    UpdateBoundsNonLinear(Vel, Other, Vel_Vel_Minus_1, Vel_Other_Minus_1, SELECT_U);
 
     // Matrix addition through all terms
-    for (int i = 0; i < Nyr*loc_Nxr; i++) {
-        loc_NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
+    for (int i = 0; i < Nyr*Nxr; i++) {
+        NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
                 (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
-        loc_NextVel[i] *= dt;
-        loc_NextVel[i] += loc_Vel[i];
+        NextVel[i] *= dt;
+        NextVel[i] += Vel[i];
     }
 
-    MPI_Allgatherv(loc_NextVel, Nyr*loc_Nxr, MPI_DOUBLE, NextVel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
+    // Gathering occurs in writing file
+    // MPI_Allgatherv(loc_NextVel, Nyr*Nxr, MPI_DOUBLE, NextVel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    // Delete pointers
-    delete[] sendcounts;
-    delete[] displs;
-    delete[] loc_Vel;
-    delete[] loc_Other;
-    delete[] loc_NextVel;
+    // Delete term array pointers
     delete[] dVel_dx_2;
     delete[] dVel_dy_2;
     delete[] dVel_dx;
@@ -452,38 +402,12 @@ double Burgers2P::ComputeR(double x, double y) {
     return r;
 }
 
-void Burgers2P::SetCache(double* Vel, double* Cache) {
-    // MPI Parameters
-    int loc_rank = model->GetRank();
-
-    // Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-
-    // Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    // Split x domain into 2
-    int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
-
-    // Set Cache
-    for (int j = 0; j < Nyr; j++) {
-        // Picks out first col of RHS for LHS (col = 5)
-        // Picks out last col of LHS for RHS (col = 4)
-        Cache[j] = Vel[loc_Nxr*Nyr+j];
-    }
-}
-
 void Burgers2P::SetCaches(double* Vel) {
     // Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
-    int x_coord = model->GetCoordX();
-    int y_coord = model->GetCoordY();
 
     // Get ranks
-    int loc_rank = model->GetRank();
     int up = model->GetUp();
     int down = model->GetDown();
     int left = model->GetLeft();
@@ -536,5 +460,66 @@ void Burgers2P::SetCaches(double* Vel) {
     delete[] myRightVel;
 }
 
-void Burgers2P::UpdateBounds() {}
+void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double* dVel_dx, double* dVel_dy) {
+    // Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    double dx = model->GetDx();
+    double dy = model->GetDy();
+    double ax = model->GetAx();
+    double ay = model->GetAy();
+    double c = model->GetC();
+
+    // Modify boundaries on this sub-matrix
+
+    /* Fix left and right boundaries */
+    for (int j = 0; j < Nyr; j++) {
+        // left
+        dVel_dx_2[j] += c/pow(dx,2.0)*leftVel[j];
+        dVel_dx[j] -= ax/dx*leftVel[j];
+
+        // right
+        dVel_dx_2[(Nxr-1)*Nyr+j] += c/pow(dx,2.0)*rightVel[j];
+    }
+
+    /* Fix up and down boundaries */
+    for (int i = 0; i < Nxr; i++) {
+        // up
+        dVel_dy_2[i*Nyr] += c/pow(dy,2.0)*upVel[i];
+        dVel_dy[i*Nyr] -= ay/dy*upVel[i];
+
+        // down
+        dVel_dy_2[i*Nyr+(Nyr-1)] += c/pow(dy,2.0)*downVel[i];
+    }
+}
+
+void Burgers2P::UpdateBoundsNonLinear(double* Vel, double* Other, double* Vel_Vel_Minus_1, double* Vel_Other_Minus_1, bool SELECT_U) {
+    // Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    double dx = model->GetDx();
+    double dy = model->GetDy();
+    double b = model->GetB();
+
+    if (SELECT_U) {
+        //up
+        for (int i = 0; i < Nxr; i++) {
+            Vel_Other_Minus_1[i*Nyr] = b/dy * upVel[i] * Other[i*Nyr];
+        }
+        // left
+        for (int j = 0; j < Nyr; j++) {
+            Vel_Vel_Minus_1[j] = b/dx * leftVel[j] * Vel[j];
+        }
+    }
+    else {
+        // up
+        for (int i = 0; i < Nxr; i++) {
+            Vel_Vel_Minus_1[i*Nyr] = b/dy * upVel[i] * Vel[i*Nyr];
+        }
+        // left
+        for (int j = 0; j < Nyr; j++) {
+            Vel_Other_Minus_1[j] = b/dx * leftVel[j] * Other[j];
+        }
+    }
+}
 
