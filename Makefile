@@ -43,7 +43,7 @@ advy: compile
 burg: compile
 	./compile 1.0 0.5 1.0 0.02 10 10 1
 
-## Parallel targets (-np = 2)
+# Parallel targets (-np = 2)
 diffp: compilep
 	mpiexec -np 2 ./compilep 0 0 0 1 10 10 1 2 1
 
@@ -57,7 +57,7 @@ burgp: compilep
 	mpiexec -np 2 ./compilep 1.0 0.5 1.0 0.02 10 10 1 2 1
 
 debug: compilep
-	mpiexec --hostfile hostfile -np 4 ./compilep 1.0 0.5 1.0 0.02 10 10 1 2 2
+	mpiexec --hostfile hostfile -np 4 ./compilep 0 0 0 1 10 10 1 2 2
 
 # Misc
 default: compile

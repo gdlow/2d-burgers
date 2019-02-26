@@ -26,41 +26,29 @@ Burgers2P::Burgers2P(Model &m) {
     /* Allocate memory to instance variables */
 
     // U0
-    U0 = nullptr;
     U0 = new double[Nyr*Nxr];
 
     // Matrix coefficients
-    dVel_dx_2_coeffs = nullptr;
-    dVel_dy_2_coeffs = nullptr;
-    dVel_dx_coeffs = nullptr;
-    dVel_dy_coeffs = nullptr;
-    dVel_dx_2_coeffs = new double[Nyr*Nxr];
-    dVel_dy_2_coeffs = new double[Nyr*Nxr];
-    dVel_dx_coeffs = new double[Nyr*Nxr];
-    dVel_dy_coeffs = new double[Nyr*Nxr];
+    dVel_dx_2_coeffs = new double[Nxr*Nxr];
+    dVel_dy_2_coeffs = new double[Nyr*Nyr];
+    dVel_dx_coeffs = new double[Nxr*Nxr];
+    dVel_dy_coeffs = new double[Nyr*Nyr];
 
     // Caches
-    upVel = nullptr;
-    downVel = nullptr;
-    leftVel = nullptr;
-    rightVel = nullptr;
     upVel = new double[Nxr];
     downVel = new double[Nxr];
     leftVel = new double[Nyr];
     rightVel = new double[Nyr];
 
     // U, V
-    U = nullptr;
-    V = nullptr;
     U = new double*[Nt];
     V = new double*[Nt];
-    // U[0] = V[0] = U0 :: SetInitialVelocity()
+    // U[0] = V[0] = U0
     for (int k = 1; k < Nt; k++) {
         U[k] = new double[Nyr*Nxr];
     }
 
     // E
-    E = nullptr;
     E = new double[Nt];
 }
 
@@ -73,7 +61,6 @@ Burgers2P::~Burgers2P() {
 
     // Delete E
     delete[] E;
-    E = nullptr;
 
     // Delete U and V
     for (int k = 1; k < Nt; k++) {
@@ -83,32 +70,21 @@ Burgers2P::~Burgers2P() {
     }
     delete[] U;
     delete[] V;
-    U = nullptr;
-    V = nullptr;
 
     // Delete Caches
     delete[] upVel;
     delete[] downVel;
     delete[] leftVel;
     delete[] rightVel;
-    upVel = nullptr;
-    downVel = nullptr;
-    leftVel = nullptr;
-    rightVel = nullptr;
 
     // Delete matrix coefficients
     delete[] dVel_dx_2_coeffs;
     delete[] dVel_dy_2_coeffs;
     delete[] dVel_dx_coeffs;
     delete[] dVel_dy_coeffs;
-    dVel_dx_2_coeffs = nullptr;
-    dVel_dy_2_coeffs = nullptr;
-    dVel_dx_coeffs = nullptr;
-    dVel_dy_coeffs = nullptr;
 
     // Delete U0
     delete[] U0;
-    U0 = nullptr;
 
     // model is not dynamically alloc
 }
@@ -243,11 +219,11 @@ void Burgers2P::SetEnergy() {
 
     // Calculate Energy
     for (int k = 0; k < Nt; k++) {
-        E[k] = NextEnergyState(U[k], V[k]);
+        E[k] = CalculateEnergyState(U[k], V[k]);
     }
 }
 
-double Burgers2P::NextEnergyState(double* Ui, double* Vi) {
+double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
     // MPI Parameters
     int p = model->GetP();
     int loc_rank = model->GetRank();
@@ -361,6 +337,10 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         NextVel[i] += Vel[i];
     }
 
+    if (model->GetRank() == 1 && SELECT_U) {
+        printDebug(Vel, Nyr, Nxr, 'U');
+    }
+
     // Gathering occurs in writing file
     // MPI_Allgatherv(loc_NextVel, Nyr*Nxr, MPI_DOUBLE, NextVel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 
@@ -395,11 +375,6 @@ void Burgers2P::SetMatrixCoefficients() {
     GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr, dVel_dy_2_coeffs);
     GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true, dVel_dx_coeffs);
     GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false, dVel_dy_coeffs);
-}
-
-double Burgers2P::ComputeR(double x, double y) {
-    double r = pow(x*x+y*y, 0.5);
-    return r;
 }
 
 void Burgers2P::SetCaches(double* Vel) {
@@ -439,7 +414,7 @@ void Burgers2P::SetCaches(double* Vel) {
     /* Send down boundary to down and receive into up boundary */
     MPI_Sendrecv(myDownVel, Nxr, MPI_DOUBLE, down, flag, upVel, Nxr, MPI_DOUBLE, up, flag, vu, MPI_STATUS_IGNORE);
     /* Send up boundary to up and receive into down boundary */
-    MPI_Sendrecv(upVel, Nxr, MPI_DOUBLE, up, flag, downVel, Nxr, MPI_DOUBLE, down, flag, vu, MPI_STATUS_IGNORE);
+    MPI_Sendrecv(myUpVel, Nxr, MPI_DOUBLE, up, flag, downVel, Nxr, MPI_DOUBLE, down, flag, vu, MPI_STATUS_IGNORE);
 
     // Exchange left/right
     flag = 1;
@@ -523,3 +498,7 @@ void Burgers2P::UpdateBoundsNonLinear(double* Vel, double* Other, double* Vel_Ve
     }
 }
 
+double Burgers2P::ComputeR(double x, double y) {
+    double r = pow(x*x+y*y, 0.5);
+    return r;
+}
