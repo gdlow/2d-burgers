@@ -224,46 +224,22 @@ void Burgers2P::SetEnergy() {
 }
 
 double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
-    // MPI Parameters
-    int p = model->GetP();
-    int loc_rank = model->GetRank();
-    int* sendcounts = new int[p];
-    int* displs = new int[p];
+    // Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    MPI_Comm vu = model->GetComm();
 
-    // Get Model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
+    // Blas calls to compute dot products
+    double loc_ddotU = F77NAME(ddot)(Nyr*Nxr, Ui, 1, Ui, 1);
+    double loc_ddotV = F77NAME(ddot)(Nyr*Nxr, Vi, 1, Vi, 1);
 
-    // Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
+    // Compute local energy state
+    double NextLocalEnergyState = 0.5 * (loc_ddotU + loc_ddotV);
+    double NextGlobalEnergyState;
 
-    // Split x domain into 2
-    int loc_Nxr = (Nxr % 2 != 0 && loc_rank == 0) ? (Nxr/2)+1 : Nxr/2;
-    sendcounts[0] = Nyr*((Nxr/2)+1); sendcounts[1] = Nyr*(Nxr/2);
-    displs[0] = 0; displs[1] = sendcounts[0];
-
-    double* loc_U = new double[loc_Nxr*Nyr];
-    double* loc_V = new double[loc_Nxr*Nyr];
-    double* U_dots = new double[p];
-    double* V_dots = new double[p];
-
-    MPI_Scatterv(Ui, sendcounts, displs, MPI_DOUBLE, loc_U, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Scatterv(Vi, sendcounts, displs, MPI_DOUBLE, loc_V, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    double loc_ddotU = F77NAME(ddot)(Nyr*loc_Nxr, loc_U, 1, loc_U, 1);
-    double loc_ddotV = F77NAME(ddot)(Nyr*loc_Nxr, loc_V, 1, loc_V, 1);
-
-    MPI_Allgather(&loc_ddotU, 1, MPI_DOUBLE, U_dots, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-    MPI_Allgather(&loc_ddotV, 1, MPI_DOUBLE, V_dots, 1, MPI_DOUBLE, MPI_COMM_WORLD);
-
-    double NextEnergyState = 0.5 * (U_dots[0] + U_dots[1] + V_dots[0] + V_dots[1]);
-
-    delete[] loc_U;
-    delete[] loc_V;
-    delete[] U_dots;
-    delete[] V_dots;
-
-    return NextEnergyState;
+    // Sum into global energy state
+    MPI_Allreduce(&NextLocalEnergyState, &NextGlobalEnergyState, 1, MPI_DOUBLE, MPI_SUM, vu);
+    return NextGlobalEnergyState;
 }
 
 /**
