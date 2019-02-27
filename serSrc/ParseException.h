@@ -2,7 +2,7 @@
 #define PARSEEXCEPTION_H
 
 #include <exception>
-// TODO: Parse incorrect arguments into expression
+
 class IllegalArgumentException: public std::exception {
 public:
     virtual const char* what() const throw() {
