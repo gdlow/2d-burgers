@@ -56,8 +56,8 @@ advyp: compilep
 burgp: compilep
 	mpiexec -np 2 ./compilep 1.0 0.5 1.0 0.02 10 10 1 2 1
 
-debug: compilep
-	mpiexec --hostfile hostfile -np 4 ./compilep 0 0 0 1 10 10 1 2 2
+report: compilep
+	mpiexec --hostfile hostfile -np 100 ./compilep 1.0 0.5 1.0 0.02 10 10 1 10 10
 
 # Misc
 default: compile
