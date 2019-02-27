@@ -3,6 +3,10 @@
 
 #include "Model.h"
 
+/**
+ * @class Burgers
+ * @brief Creates a Burgers instance that does computations on Burger's equation
+ * */
 class Burgers {
 public:
     Burgers(Model &m);
@@ -17,7 +21,7 @@ private:
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
 
-    // Burger parameters
+    /// Burger parameters
     Model* model;
     double** U;
     double** V;

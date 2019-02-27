@@ -8,27 +8,27 @@
 using namespace std;
 
 /**
- * Constructor: Accepts a Model instance pointer as input
- * Sets it as an instance variable
+ * @brief Public Constructor: Accepts a Model instance reference as input
+ * @param &m reference to Model instance
  * */
 Burgers::Burgers(Model &m) {
     model = &m;
 }
 
 /**
- * Destructor: Deletes all allocated pointers in the class instance
+ * @brief Destructor: Deletes all allocated pointers in the class instance
  * */
 Burgers::~Burgers() {
-    // Get model parameters
+    /// Get model parameters
     int Nt = model->GetNt();
 
-    // Delete matrix coefficients
+    /// Delete matrix coefficients
     delete[] dVel_dx_2_coeffs;
     delete[] dVel_dy_2_coeffs;
     delete[] dVel_dx_coeffs;
     delete[] dVel_dy_coeffs;
 
-    // Delete U and V
+    /// Delete U and V
     for (int k = 1; k < Nt; k++) {
         // U[0] = V[0] = U0 (not dynamically alloc)
         delete[] U[k];
@@ -37,22 +37,22 @@ Burgers::~Burgers() {
     delete[] U; delete[] V;
     U = nullptr; V = nullptr;
 
-    // Delete U0
+    /// Delete U0
     delete[] U0;
     U0 = nullptr;
 
-    // Delete E
+    /// Delete E
     delete[] E;
     E = nullptr;
 
-    // model is not dynamically alloc
+    /// model is not dynamically alloc
 }
 
 /**
- * Sets initial velocity field in x,y for U0 (V0 = U0)
+ * @brief Sets initial velocity field in x,y for U0 (V0 = U0)
  * */
 void Burgers::SetInitialVelocity() {
-    // Get model parameters
+    /// Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
     double x0 = model->GetX0();
@@ -60,11 +60,11 @@ void Burgers::SetInitialVelocity() {
     double dx = model->GetDx();
     double dy = model->GetDy();
 
-    // Reduced parameters
+    /// Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
-    // Compute U0;
+    /// Compute U0;
     U0 = nullptr;
     U0 = new double[Nyr*Nxr];
     for (int i = 0; i < Nx; i++) {
@@ -80,23 +80,23 @@ void Burgers::SetInitialVelocity() {
 }
 
 /**
- * Sets velocity field in x,y for U, V
+ * @brief Sets velocity field in x,y for U, V
  * */
 void Burgers::SetIntegratedVelocity() {
-    // Get model parameters
+    /// Get model parameters
     int Nt = model->GetNt();
 
-    // Generate U, V
+    /// Generate U, V
     U = nullptr; V = nullptr;
     U = new double*[Nt]; V = new double*[Nt];
 
-    // Set initial velocity field
+    /// Set initial velocity field
     U[0] = U0; V[0] = U0;
 
-    // Set Matrix Coefficients
+    /// Set Matrix Coefficients
     SetMatrixCoefficients();
 
-    // Compute U, V for every step k
+    /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
         U[k+1] = NextVelocityState(U[k], V[k], true);
         V[k+1] = NextVelocityState(U[k], V[k], false);
@@ -104,31 +104,31 @@ void Burgers::SetIntegratedVelocity() {
 }
 
 /**
- * Writes the velocity field for U, V into a file
+ * @brief Writes the velocity field for U, V into a file
  * IMPORTANT: Run SetIntegratedVelocity() first
  * */
 void Burgers::WriteVelocityFile() {
-    // Get model parameters
+    /// Get model parameters
     int Nt = model->GetNt();
     int Ny = model->GetNy();
     int Nx = model->GetNx();
     double dt = model->GetDt();
 
-    // Reduced parameters
+    /// Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
-    // Alloc 2D pointer
+    /// Alloc 2D pointer
     double** Vel = new double*[Nyr];
     for (int j = 0; j < Nyr; j++) {
         Vel[j] = new double[Nxr];
     }
 
-    // Write U, V into "data.txt"
+    /// Write U, V into "data.txt"
     ofstream of;
     of.open("data.txt", ios::out | ios::trunc);
     of.precision(4); // 4 s.f.
-    // Write U velocities
+    /// Write U velocities
     of << "U velocity field:" << endl;
     for (int k = 0; k < Nt; k++) {
         of << "t = " << k*dt << ":" << endl;
@@ -145,7 +145,7 @@ void Burgers::WriteVelocityFile() {
             of << endl;
         }
     }
-    // Write V velocities
+    /// Write V velocities
     of << "V velocity field:" << endl;
     for (int k = 0; k < Nt; k++) {
         of << "t = " << k*dt << ":" << endl;
@@ -164,24 +164,27 @@ void Burgers::WriteVelocityFile() {
     }
     of.close();
 
-    // Delete 2D temp pointer
+    /// Delete 2D temp pointer
     for (int j = 0; j < Nyr; j++) {
         delete[] Vel[j];
     }
     delete[] Vel;
 }
 
+/**
+ * @brief Calculates and sets energy of each velocity field per timestamp
+ * */
 void Burgers::SetEnergy() {
-    // Get Model parameters
+    /// Get Model parameters
     int Nt = model->GetNt();
     int Ny = model->GetNy();
     int Nx = model->GetNx();
 
-    // Reduced parameters
+    /// Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
-    // Calculate Energy
+    /// Calculate Energy
     E = nullptr;
     E = new double[Nt];
     for (int k = 0; k < Nt; k++) {
@@ -192,10 +195,13 @@ void Burgers::SetEnergy() {
 }
 
 /**
- * Computes and returns next velocity state based on previous inputs
+ * @brief Private helper function that computes and returns next velocity state based on previous inputs
+ * @param Ui U velocity per timestamp (i.e. supply U[k])
+ * @param Vi V velocity per timestamp (i.e. supply V[k])
+ * @param SELECT_U true if the computation is for U
  * */
 double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
-    // Get model parameters
+    /// Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
     double dt = model->GetDt();
@@ -203,15 +209,15 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double dy = model->GetDy();
     double b = model->GetB();
 
-    // Reduced parameters
+    /// Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
-    // Set aliases for computation
+    /// Set aliases for computation
     double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
 
-    // Generate term arrays
+    /// Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
     double* dVel_dx_2 = new double[Nyr*Nxr];
     double* dVel_dy_2 = new double[Nyr*Nxr];
@@ -222,17 +228,17 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* Vel_Vel_Minus_1 = nullptr;
     double* Vel_Other_Minus_1 = nullptr;
 
-    // Compute second derivatives
+    /// Compute second derivatives
     F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nyr, 0.0, dVel_dx_2, Nyr);
     F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
 
-    // Compute first derivatives
+    /// Compute first derivatives
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, -1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
-    // Compute b terms
+    /// Compute b terms
     if (SELECT_U == true) {
         Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dx);
         Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dy);
@@ -246,7 +252,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, true, false, b/dx);
     }
 
-    // Matrix addition through all terms
+    /// Matrix addition through all terms
     for (int i = 0; i < Nyr*Nxr; i++) {
         NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] + dVel_dx[i] + dVel_dy[i] -
                      (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
@@ -254,7 +260,7 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         NextVel[i] += Vel[i];
     }
 
-    // Delete pointers
+    /// Delete pointers
     delete[] dVel_dx_2;
     delete[] dVel_dy_2;
     delete[] dVel_dx;
@@ -268,10 +274,10 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
 }
 
 /**
- * Sets matrix coefficients for differentials
+ * @brief Private helper function that sets matrix coefficients for differentials
  * */
 void Burgers::SetMatrixCoefficients() {
-    // Get model parameters
+    /// Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
     double dx = model->GetDx();
@@ -280,17 +286,22 @@ void Burgers::SetMatrixCoefficients() {
     double ay = model->GetAy();
     double c = model->GetC();
 
-    // Reduced parameters
+    /// Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
-    // Generate and set coefficients
+    /// Generate and set coefficients
     dVel_dx_2_coeffs = GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr);
     dVel_dy_2_coeffs = GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr);
     dVel_dx_coeffs = GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true);
     dVel_dy_coeffs = GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false);
 }
 
+/**
+ * @brief Private helper function computing R for SetInitialVelocity()
+ * @param x real x distance to origin
+ * @param y real y distance to origin
+ * */
 double Burgers::ComputeR(double x, double y) {
     double r = pow(x*x+y*y, 0.5);
     return r;

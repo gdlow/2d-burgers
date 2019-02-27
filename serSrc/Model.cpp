@@ -2,15 +2,10 @@
 #include "Model.h"
 #include "ParseException.h"
 
-/**
- * CPP source file for Model class
- * Constructors, public and private member functions defined here
- * */
-
 using namespace std;
 
 /**
- * Constructor: sets constants from arg parameters
+ * @brief Constructor: sets constants from arg parameters
  * */
 Model::Model(int argc, char** argv) {
     try {
@@ -21,12 +16,16 @@ Model::Model(int argc, char** argv) {
     ValidateParameters();
 }
 
+/**
+ * @brief Destructor: deallocates memory, finalizes MPI program and destroys Model instance
+ * */
 Model::~Model() {
 
 }
 
 /**
- * Parses parameters from command line into program
+ * @brief Parses parameters from command line into program
+ * @brief Throws an exception if invalid number of arguments are supplied
  * */
 void Model::ParseParameters(int argc, char **argv) {
     if (argc == 8) {
@@ -43,7 +42,7 @@ void Model::ParseParameters(int argc, char **argv) {
 }
 
 /**
- * Prints model parameters
+ * @brief Prints model parameters
  * */
 void Model::PrintParameters() {
     cout << "ax: " << ax << endl;
@@ -56,19 +55,22 @@ void Model::PrintParameters() {
 }
 
 /**
- * Checks if parameters supplied are valid
+ * @brief Checks if parameters supplied are valid
  * */
 bool Model::IsValid() {
     return ax >= 0 && ay >= 0 && b >= 0 && c >= 0 && Lx >= 0 && Ly >= 0 && T >= 0;
 }
 
+/**
+ * @brief Validates the parameters. If parameters supplied are valid, set them as instance vars
+ * */
 void Model::ValidateParameters() {
     if (!IsValid()) cout << "WARN: Parameter values have to be (>=0)" << endl;
     else SetNumerics();
 }
 
 /**
- * Set appropriate values for various members
+ * @brief Set appropriate values for various members
  * */
 void Model::SetNumerics() {
     Nx = 11;

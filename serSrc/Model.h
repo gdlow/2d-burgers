@@ -1,7 +1,10 @@
 #ifndef CLASS_MODEL
 #define CLASS_MODEL
 
-
+/**
+ * @class Model
+ * @brief Sets up the model instance specifying key parameters constructing the problem
+ * */
 class Model {
 public:
     Model(int argc, char* argv[]);
@@ -11,7 +14,7 @@ public:
 
     bool IsValid();
 
-    // Getters
+    /// Getters
     bool   IsVerbose() const { return verbose; }
     bool   IsHelp()    const { return help; }
     double GetX0()     const { return x0; }
@@ -36,19 +39,20 @@ private:
     void ParseParameters(int argc, char* argv[]);
     void ValidateParameters();
 
-    // Private Setters
+    /// Private Setters
     void SetNumerics();
 
     bool verbose;
     bool help;
 
-    // Numerics: Everything here has to be predefined
+    /// Numerics: Everything here has to be predefined
 
-    // ParseParameters:
+    /// ParseParameters:
     double Lx;
     double Ly;
     double T;
-    // SetNumerics:
+    
+    /// SetNumerics:
     double x0;
     double y0;
     int    Nx;
@@ -58,7 +62,7 @@ private:
     double dy;
     double dt;
 
-    // Physics
+    /// Physics
     double ax;
     double ay;
     double b;
