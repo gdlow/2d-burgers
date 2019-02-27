@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 
     // Calculate final energy and write output
     b.SetEnergy();
-    // b.WriteVelocityFile();
+    b.WriteVelocityFile();
 
     return 0;
 }

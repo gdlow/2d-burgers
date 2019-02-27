@@ -115,9 +115,6 @@ void Burgers2P::SetInitialVelocity() {
             U0[i*Nyr+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
         }
     }
-
-    // Gathering occurs only in writing to file
-    // MPI_Allgatherv(loc_U0, Nyr*loc_Nxr, MPI_DOUBLE, U0, recvcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 }
 
 /**
@@ -145,70 +142,60 @@ void Burgers2P::SetIntegratedVelocity() {
  * IMPORTANT: Run SetIntegratedVelocity() first
  * */
 void Burgers2P::WriteVelocityFile() {
-    // MPI Parameters
+    // Get model parameters
+    int Ny = model->GetNy();
+    int Nx = model->GetNx();
+
+    // Allocate 2D pointer
+    double** M = new double*[Ny-2];
+    for (int j = 0; j < Ny-2; j++) {
+        M[j] = new double[Nx-2];
+    }
+
+    // Open output file stream to data.txt
+    ofstream of;
+    of.open("data.txt", ios::out | ios::trunc);
+    of.precision(4); // 4 s.f.
+
+    // Write U velocities
+    WriteOf(U, M, of, 'U');
+
+    // Write V velocities
+    WriteOf(V, M, of, 'V');
+    of.close();
+
+    // Delete 2D pointer
+    for (int j = 0; j < Ny-2; j++) {
+        delete[] M[j];
+    }
+    delete[] M;
+}
+
+void Burgers2P::WriteOf(double** Vel, double** M, ofstream &of, char id) {
     int loc_rank = model->GetRank();
+    int Ny = model->GetNy();
+    int Nx = model->GetNx();
+    int Nt = model->GetNt();
+    double dt = model->GetDt();
+
     if (loc_rank == 0) {
-        // Get model parameters
-        int Nt = model->GetNt();
-        int Ny = model->GetNy();
-        int Nx = model->GetNx();
-        double dt = model->GetDt();
-
-        // Reduced parameters
-        int Nyr = Ny - 2;
-        int Nxr = Nx - 2;
-
-        // Alloc 2D pointer
-        double** Vel = new double*[Nyr];
-        for (int j = 0; j < Nyr; j++) {
-            Vel[j] = new double[Nxr];
-        }
-
-        // Write U, V into "data.txt"
-        ofstream of;
-        of.open("data.txt", ios::out | ios::trunc);
-        of.precision(4); // 4 s.f.
-        // Write U velocities
-        of << "U velocity field:" << endl;
-        for (int k = 0; k < Nt; k++) {
-            of << "t = " << k*dt << ":" << endl;
-            wrap(U[k], Nyr, Nxr, Vel);
+        of << id << " velocity field:" << endl;
+    }
+    for (int k = 0; k < Nt; k++) {
+        AssembleMatrix(Vel[k], M);
+        if (loc_rank == 0) {
+            of << "t = " << k * dt << ":" << endl;
             for (int j = 0; j < Ny; j++) {
                 for (int i = 0; i < Nx; i++) {
-                    if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
+                    if (j == 0 || i == 0 || j == Ny - 1 || i == Nx - 1) {
                         of << 0 << ' ';
-                    }
-                    else {
-                        of << Vel[j-1][i-1] << ' ';
+                    } else {
+                        of << M[j - 1][i - 1] << ' ';
                     }
                 }
                 of << endl;
             }
         }
-        // Write V velocities
-        of << "V velocity field:" << endl;
-        for (int k = 0; k < Nt; k++) {
-            of << "t = " << k*dt << ":" << endl;
-            wrap(V[k], Nyr, Nxr, Vel);
-            for (int j = 0; j < Ny; j++) {
-                for (int i = 0; i < Nx; i++) {
-                    if (j == 0 || i == 0 || j == Ny-1 || i == Nx-1) {
-                        of << 0 << ' ';
-                    }
-                    else {
-                        of << Vel[j-1][i-1] << ' ';
-                    }
-                }
-                of << endl;
-            }
-        }
-        of.close();
-
-        // Delete 2D temp pointer
-        for (int j = 0; j < Nyr; j++) {
-            delete[] Vel[j];
-        }
-        delete[] Vel;
     }
 }
 
@@ -261,10 +248,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     // Set caches for Vel
     SetCaches(Vel);
 
-    // No need for scatterv because you are working on a sub-part of the matrix
-    // MPI_Scatterv(Vel, sendcounts, displs, MPI_DOUBLE, loc_Vel, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    // MPI_Scatterv(Other, sendcounts, displs, MPI_DOUBLE, loc_Other, sendcounts[loc_rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
     // Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
     double* dVel_dx_2 = new double[Nyr*Nxr];
@@ -316,9 +299,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     if (model->GetRank() == 1 && SELECT_U) {
         printDebug(Vel, Nyr, Nxr, 'U');
     }
-
-    // Gathering occurs in writing file
-    // MPI_Allgatherv(loc_NextVel, Nyr*Nxr, MPI_DOUBLE, NextVel, sendcounts, displs, MPI_DOUBLE, MPI_COMM_WORLD);
 
     // Delete term array pointers
     delete[] dVel_dx_2;
@@ -472,6 +452,43 @@ void Burgers2P::UpdateBoundsNonLinear(double* Vel, double* Other, double* Vel_Ve
             Vel_Other_Minus_1[j] = b/dx * leftVel[j] * Other[j];
         }
     }
+}
+
+void Burgers2P::AssembleMatrix(double* Vel, double** M) {
+    // Get model parameters
+    int loc_rank = model->GetRank();
+    int Ny = model->GetNy();
+    int Nx = model->GetNx();
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    int Px = model->GetPx();
+    int Py = model->GetPy();
+    MPI_Comm vu = model->GetComm();
+
+    // Don't delete these pointers
+    int* displs = model->GetDispls();
+    int* recvcount = model->GetRecvCount();
+    int* rankNxrMap = model->GetRankNxrMap();
+    int* rankNyrMap = model->GetRankNyrMap();
+    int* rankDisplsXMap = model->GetRankDisplsXMap();
+    int* rankDisplsYMap = model->GetRankDisplsYMap();
+
+    // Gather into globalVel in root (rank == 0)
+    double* globalVel = new double[(Ny-2)*(Nx-2)];
+    MPI_Gatherv(Vel, Nyr*Nxr, MPI_DOUBLE, globalVel, recvcount, displs, MPI_DOUBLE, 0, vu);
+
+    // Build global matrix in root, convert column-major -> row-major format
+    if (loc_rank == 0) {
+        for (int k = 0; k < Px*Py; k++) {
+            for (int i = 0; i < rankNxrMap[k]; i++) {
+                for (int j = 0; j < rankNyrMap[k]; j++) {
+                    M[rankDisplsYMap[k]+j][rankDisplsXMap[k]+i] = globalVel[displs[k]+i*Nyr+j];
+                }
+            }
+        }
+    }
+
+    delete[] globalVel;
 }
 
 double Burgers2P::ComputeR(double x, double y) {

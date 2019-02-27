@@ -34,11 +34,12 @@ Model::~Model() {
     delete[] loc_Nyr;
     delete[] displs_x;
     delete[] displs_y;
-    loc_coord = nullptr;
-    loc_Nxr = nullptr;
-    loc_Nyr = nullptr;
-    displs_x = nullptr;
-    displs_y = nullptr;
+    delete[] displs;
+    delete[] recvcount;
+    delete[] rankNxrMap;
+    delete[] rankNyrMap;
+    delete[] rankDisplsXMap;
+    delete[] rankDisplsYMap;
     MPI_Finalize();
 }
 
@@ -143,6 +144,28 @@ void Model::SetGridParameters() {
         sum += loc_Nyr[i];
     }
 
+    // Define parameters for assembling matrix
+    recvcount = new int[Px*Py];
+    displs = new int[Px*Py];
+    rankNxrMap = new int[Px*Py];
+    rankNyrMap = new int[Px*Py];
+    rankDisplsXMap = new int[Px*Py];
+    rankDisplsYMap = new int[Px*Py];
+
+    /* Layout of cartesian grid in row-major format */
+    sum = 0;
+    for (int j = 0; j < Py; j++) {
+        for (int i = 0; i < Px; i++) {
+            rankNxrMap[j*Px+i] = loc_Nxr[i];
+            rankNyrMap[j*Px+i] = loc_Nyr[j];
+            rankDisplsXMap[j*Px+i] = displs_x[i];
+            rankDisplsYMap[j*Px+i] = displs_y[j];
+            displs[j*Px+i] = sum;
+            recvcount[j*Px+i] = loc_Nyr[j] * loc_Nxr[i];
+            sum += recvcount[j*Px+i];
+        }
+    }
+
     // Print result
     if (loc_rank == 0) {
         for (int j = 0; j < Py; j++) {
@@ -163,6 +186,11 @@ void Model::SetCartesianGrid() {
     // Create cartesian grid of processes
     MPI_Cart_create(MPI_COMM_WORLD, 2, dim, period, reorder, &vu);
 
+    // Recast loc_rank and p wrt vu
+    // TODO: Test that you get the same rank
+    MPI_Comm_rank(vu, &loc_rank);
+    MPI_Comm_size(vu, &p);
+
     // Set local coordinates
     MPI_Cart_coords(vu, loc_rank, 2, loc_coord);
 
@@ -178,14 +206,6 @@ void Model::SetCartesianGrid() {
 void Model::SetNeighbours() {
     MPI_Cart_shift(vu, 0, 1, &up, &down);
     MPI_Cart_shift(vu, 1, 1, &left, &right);
-}
-
-int Model::GetCoordX() {
-    return loc_coord[1];
-}
-
-int Model::GetCoordY() {
-    return loc_coord[0];
 }
 
 int Model::GetLocNxr() {
