@@ -296,10 +296,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         NextVel[i] += Vel[i];
     }
 
-    if (model->GetRank() == 1 && SELECT_U) {
-        printDebug(Vel, Nyr, Nxr, 'U');
-    }
-
     // Delete term array pointers
     delete[] dVel_dx_2;
     delete[] dVel_dy_2;
