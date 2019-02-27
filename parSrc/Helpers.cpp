@@ -5,7 +5,10 @@
 /* Helper functions with 2D matrices */
 
 /**
- * Wraps a column-major 1D pointer into a row-major 2D array
+ * @brief Wraps a column-major 1D pointer into a generated row-major 2D pointer
+ * @param A 1D pointer in column-major format
+ * @param Nxr Nxr
+ * @param Nyr Nyr
  * */
 double** wrap(double* A, int Nyr, int Nxr) {
     double ** res = new double*[Nyr];
@@ -21,6 +24,13 @@ double** wrap(double* A, int Nyr, int Nxr) {
     return res;
 }
 
+/**
+ * @brief Wraps a column-major 1D pointer into a pre-allocated row-major 2D pointer
+ * @param A 1D pointer in column-major format
+ * @param Nxr Nxr
+ * @param Nyr Nyr
+ * @param res 2D pointer pre-allocated with memory
+ * */
 void wrap(double* A, int Nyr, int Nxr, double** res) {
     for (int i = 0; i < Nyr*Nxr; i++) {
         int col = i / Nyr; // divisor result
@@ -29,6 +39,13 @@ void wrap(double* A, int Nyr, int Nxr, double** res) {
     }
 }
 
+/**
+ * @brief Print the 2D representation of a column-major 1D pointer for debugging
+ * @param A 1D pointer in column-major format
+ * @param Nyr Nyr
+ * @param Nxr Nxr
+ * @param c ID for printing
+ * */
 void printDebug(double* A, int Nyr, int Nxr, char c) {
     double ** res = wrap(A, Nyr, Nxr);
     std::cout << "PrintDebug " << c << ":" << std::endl;
@@ -46,23 +63,14 @@ void printDebug(double* A, int Nyr, int Nxr, char c) {
     delete[] res;
 }
 
-double** transpose(double** A, int N, int M) {
-    double** T = new double*[M];
-    for (int i = 0; i < M; i++) {
-        T[i] = new double[N];
-        for (int j = 0; j < N; j++) {
-            T[i][j] = A[j][i];
-        }
-    }
-    return T;
-}
-
-
 /**
- * Generates a symmetrical, square matrix
- * Stored in column-major format
- * alpha takes on the leading diagonal
- * beta takes on the banded row above and below
+ * @brief Generates a symmetrical, square matrix for getting matrix coefficients
+ * @brief Stored in column-major format
+ * @param alpha prefactor along the leading diagonal
+ * @param beta prefactor along the banded rows above and below
+ * @param Nyr Nyr
+ * @param Nxr Nxr
+ * @param M pre-allocated matrix to be filled in symmetrically
  * */
 void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
     for (int i = 0; i < Nyr*Nxr; i++) {
@@ -76,10 +84,14 @@ void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
 }
 
 /**
- * Generates a triangular, square matrix
- * Stored in column-major format
- * alpha takes on the leading diagonal
- * beta takes on the banded row above (UPPER) or below
+ * @brief Generates a symmetrical, square matrix for getting matrix coefficients
+ * @brief Stored in column-major format
+ * @param alpha prefactor along the leading diagonal
+ * @param beta prefactor along the banded row either above OR below
+ * @param Nyr Nyr
+ * @param Nxr Nxr
+ * @param UPPER specifies whether the matrix is upper triangular
+ * @param M pre-allocated matrix to be filled in symmetrically
  * */
 void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M) {
     for (int i = 0; i < Nyr*Nxr; i++) {
@@ -93,9 +105,14 @@ void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M)
 }
 
 /**
- * Performs element-wise multiplication of 2 matrices
- * Ui is always the one offset (Must -> Vel)
- * p = prefactor
+ * @brief Performs element-wise multiplication of 2 matrices
+ * @param Ui pointer to column-major, Velocity matrix. Always the one offset
+ * @param Vi pointer to column-major, Other matrix. Is the one NOT offset
+ * @param Nyr Nyr
+ * @param Nxr Nxr
+ * @param offset_i is there an i offset?
+ * @param offset_j is there a j offset?
+ * @param p prefactor
  * */
 double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool offset_j, double p) {
     double* M = new double[Nyr*Nxr];
@@ -119,6 +136,9 @@ double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool off
     return M;
 }
 
+/**
+ * @brief Sets the entire 1D array to 0
+ * */
 void SetZeroes(double* arr, int sz) {
     for (int i = 0; i < sz; i++) {
         arr[i] = 0;

@@ -3,15 +3,10 @@
 #include "Model2P.h"
 #include "ParseException.h"
 
-/**
- * CPP source file for Model class
- * Constructors, public and private member functions defined here
- * */
-
 using namespace std;
 
 /**
- * Constructor: sets constants from arg parameters
+ * @brief Constructor: sets constants from arg parameters
  * */
 Model::Model(int argc, char** argv) {
     try {
@@ -28,6 +23,9 @@ Model::Model(int argc, char** argv) {
     SetCartesianGrid();
 }
 
+/**
+ * @brief Destructor: deallocates memory, finalizes MPI program and destroys Model instance
+ * */
 Model::~Model() {
     delete[] loc_coord;
     delete[] loc_Nxr;
@@ -44,7 +42,8 @@ Model::~Model() {
 }
 
 /**
- * Parses parameters from command line into program
+ * @brief Parses parameters from command line into program
+ * @brief Throws an exception if invalid number of arguments are supplied
  * */
 void Model::ParseParameters(int argc, char **argv) {
     if (argc == 10) {
@@ -62,7 +61,7 @@ void Model::ParseParameters(int argc, char **argv) {
 }
 
 /**
- * Prints model parameters
+ * @brief Prints model parameters
  * */
 void Model::PrintParameters() {
     if (loc_rank == 0) {
@@ -79,19 +78,22 @@ void Model::PrintParameters() {
 }
 
 /**
- * Checks if parameters supplied are valid
+ * @brief Checks if parameters supplied are valid
  * */
 bool Model::IsValid() {
     return ax >= 0 && ay >= 0 && b >= 0 && c >= 0 && Lx >= 0 && Ly >= 0 && T >= 0;
 }
 
+/**
+ * @brief Validates the parameters. If parameters supplied are valid, set them as instance vars
+ * */
 void Model::ValidateParameters() {
     if (!IsValid()) cout << "WARN: Parameter values have to be (>=0)" << endl;
     else SetNumerics();
 }
 
 /**
- * Set appropriate values for various members
+ * @brief Set appropriate values for various members
  * */
 void Model::SetNumerics() {
     Nx = 11;
@@ -106,8 +108,11 @@ void Model::SetNumerics() {
     y0 = Ly/2.0;
 }
 
+/**
+ * @brief Sets the local and global displacements and sizes of each sub-matrix
+ * */
 void Model::SetGridParameters() {
-    // Reduced parameters
+    /// Reduced parameters
     int Nxr = Nx - 2;
     int Nyr = Ny - 2;
 
@@ -117,7 +122,7 @@ void Model::SetGridParameters() {
     displs_y = new int[Py];
     int rem, sum;
 
-    // Define subcols and displs along x
+    /// Define subcols and displs along x
     rem = Nxr % Px;
     sum = 0;
     for (int i = 0; i < Px; i++) {
@@ -130,7 +135,7 @@ void Model::SetGridParameters() {
         sum += loc_Nxr[i];
     }
 
-    // Define subcols and displs along y
+    /// Define subcols and displs along y
     rem = Nyr % Py;
     sum = 0;
     for (int i = 0; i < Py; i++) {
@@ -143,7 +148,7 @@ void Model::SetGridParameters() {
         sum += loc_Nyr[i];
     }
 
-    // Define parameters for assembling matrix
+    /// Define parameters for assembling matrix
     recvcount = new int[Px*Py];
     displs = new int[Px*Py];
     rankNxrMap = new int[Px*Py];
@@ -165,7 +170,7 @@ void Model::SetGridParameters() {
         }
     }
 
-    // Print result
+    /// Print result
     if (loc_rank == 0) {
         for (int j = 0; j < Py; j++) {
             for (int i = 0; i < Px; i++) {
@@ -176,49 +181,66 @@ void Model::SetGridParameters() {
     }
 }
 
+/**
+ * @brief Sets up a cartesian grid of Px * Py processors and identifies local neighbours
+ * */
 void Model::SetCartesianGrid() {
     int dim[2] = {Py, Px};
     int period[2] = {0,0};
     int reorder = 1;
     loc_coord = new int[2];
 
-    // Create cartesian grid of processes
+    /// Create cartesian grid of processes
     MPI_Cart_create(MPI_COMM_WORLD, 2, dim, period, reorder, &vu);
 
-    // Recast loc_rank and p wrt vu
-    // TODO: Test that you get the same rank
+    /// Recast loc_rank and p wrt vu
     MPI_Comm_rank(vu, &loc_rank);
     MPI_Comm_size(vu, &p);
 
-    // Set local coordinates
+    /// Set local coordinates
     MPI_Cart_coords(vu, loc_rank, 2, loc_coord);
 
-    // Set neighbours
+    /// Set neighbours
     SetNeighbours();
 
-    // Print loc_rank, coordinates, local Nxr and Nyr
+    /// Print loc_rank, coordinates, local Nxr and Nyr
     cout << "Rank: " << loc_rank << endl;
     cout << "Coordinates: (" << loc_coord[0] << "," << loc_coord[1] << ")" << endl;
     cout << "Nyr, Nxr: (" << GetLocNyr() << "," << GetLocNxr() << ")" << endl;
 }
 
+/**
+ * @brief Sets processor ids of neighbours to the local sub-matrix
+ * */
 void Model::SetNeighbours() {
     MPI_Cart_shift(vu, 0, 1, &up, &down);
     MPI_Cart_shift(vu, 1, 1, &left, &right);
 }
 
+/**
+ * @brief Get local Nxr
+ * */
 int Model::GetLocNxr() {
     return loc_Nxr[loc_coord[1]];
 }
 
+/**
+ * @brief Get local Nyr
+ * */
 int Model::GetLocNyr() {
     return loc_Nyr[loc_coord[0]];
 }
 
+/**
+ * @brief Get local x displacement from global (0,0)
+ * */
 int Model::GetDisplX() {
     return displs_x[loc_coord[1]];
 }
 
+/**
+ * @brief Get local y displacement from global (0,0)
+ * */
 int Model::GetDisplY() {
     return displs_y[loc_coord[0]];
 }

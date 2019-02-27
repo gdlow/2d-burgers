@@ -3,6 +3,10 @@
 
 #include <mpi.h>
 
+/**
+ * @class Model
+ * @brief Sets up the model instance specifying key parameters constructing the problem
+ * */
 class Model {
 public:
     Model(int argc, char* argv[]);
@@ -12,7 +16,7 @@ public:
 
     bool IsValid();
 
-    // Getters
+    /// Generic getters
     bool   IsVerbose() const { return verbose; }
     bool   IsHelp()    const { return help; }
     double GetX0()     const { return x0; }
@@ -33,7 +37,7 @@ public:
 
     // Add any other getters here...
 
-    // MPI parameters
+    /// MPI getters
     int GetRank()      const { return loc_rank; }
     int GetPx()        const { return Px; }
     int GetPy()        const { return Py; }
@@ -57,7 +61,7 @@ private:
     void ParseParameters(int argc, char* argv[]);
     void ValidateParameters();
 
-    // Private Setters
+    /// Private setters
     void SetNumerics();
     void SetGridParameters();
     void SetCartesianGrid();
@@ -68,11 +72,11 @@ private:
 
     // Numerics: Everything here has to be predefined
 
-    // ParseParameters:
+    /// ParseParameters
     double Lx;
     double Ly;
     double T;
-    // SetNumerics:
+    /// SetNumerics
     double x0;
     double y0;
     int    Nx;
@@ -82,7 +86,7 @@ private:
     double dy;
     double dt;
 
-    // Physics
+    /// Physics
     double ax;
     double ay;
     double b;
@@ -90,7 +94,7 @@ private:
 
     // Add any additional parameters here...
 
-    // MPI Parameters
+    /// MPI Parameters
     int p;
     int loc_rank;
     int Px;
