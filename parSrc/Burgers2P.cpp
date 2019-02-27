@@ -478,7 +478,11 @@ void Burgers2P::AssembleMatrix(double* Vel, double** M) {
         for (int k = 0; k < Px*Py; k++) {
             for (int i = 0; i < rankNxrMap[k]; i++) {
                 for (int j = 0; j < rankNyrMap[k]; j++) {
-                    M[rankDisplsYMap[k]+j][rankDisplsXMap[k]+i] = globalVel[displs[k]+i*Nyr+j];
+                    int loc_displ_y = rankDisplsYMap[k];
+                    int loc_displ_x = rankDisplsXMap[k];
+                    int loc_Nyr = rankNyrMap[k];
+                    int global_displ = displs[k];
+                    M[loc_displ_y+j][loc_displ_x+i] = globalVel[global_displ+i*loc_Nyr+j];
                 }
             }
         }

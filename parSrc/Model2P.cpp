@@ -57,7 +57,6 @@ void Model::ParseParameters(int argc, char **argv) {
         T = atof(argv[7]);
         Px = atoi(argv[8]);
         Py = atoi(argv[9]);
-        cout << "Parameters saved successfully." << endl;
     }
     else throw illegalArgumentException;
 }
