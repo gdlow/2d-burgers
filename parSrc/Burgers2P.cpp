@@ -111,7 +111,7 @@ void Burgers2P::SetInitialVelocity() {
             double x = loc_x0 + i*dx;
             double y = loc_y0 - j*dy;
             double r = ComputeR(x, y);
-            U0[i*Nyr+j] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
+            U0[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
@@ -227,6 +227,8 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
+    double dx = model->GetDx();
+    double dy = model->GetDy();
     MPI_Comm vu = model->GetComm();
 
     /// Blas calls to compute dot products
@@ -234,7 +236,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
     double loc_ddotV = F77NAME(ddot)(Nyr*Nxr, Vi, 1, Vi, 1);
 
     /// Compute local energy state
-    double NextLocalEnergyState = 0.5 * (loc_ddotU + loc_ddotV);
+    double NextLocalEnergyState = 0.5 * (loc_ddotU + loc_ddotV) * dx*dy;
     double NextGlobalEnergyState;
 
     /// Sum into global energy state

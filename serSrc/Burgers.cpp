@@ -74,7 +74,7 @@ void Burgers::SetInitialVelocity() {
             double x = x0 + i*dx;
             double r = ComputeR(x, y);
             // Store in column-major format
-            U0[(i-1)*Nyr+(j-1)] = (r <= 1.0)? pow(2.0*(1.0-r),4.0) * (4.0*r+1.0) : 0.0;
+            U0[(i-1)*Nyr+(j-1)] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
@@ -179,6 +179,8 @@ void Burgers::SetEnergy() {
     int Nt = model->GetNt();
     int Ny = model->GetNy();
     int Nx = model->GetNx();
+    double dx = model->GetDx();
+    double dy = model->GetDy();
 
     /// Reduced parameters
     int Nyr = Ny - 2;
@@ -190,7 +192,7 @@ void Burgers::SetEnergy() {
     for (int k = 0; k < Nt; k++) {
         double ddotU = F77NAME(ddot)(Nyr*Nxr, U[k], 1, U[k], 1);
         double ddotV = F77NAME(ddot)(Nyr*Nxr, V[k], 1, V[k], 1);
-        E[k] = 0.5 * (ddotU + ddotV);
+        E[k] = 0.5 * (ddotU + ddotV) * dx*dy;
     }
 }
 
