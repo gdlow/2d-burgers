@@ -72,8 +72,7 @@ void printDebug(double* A, int Nyr, int Nxr, char c) {
  * @param Nxr Nxr
  * @param M pre-allocated matrix to be filled in symmetrically
  * */
-double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
-    double* M = new double[Nyr*Nxr]; // Column-major format (symmetric anyway)
+void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
     for (int i = 0; i < Nyr*Nxr; i++) {
         M[i] = 0;
     }
@@ -82,7 +81,6 @@ double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
         M[i*Nyr+i] = alpha;
         if (i<Nxr-1) M[i*Nyr+(i+1)] = beta;
     }
-    return M;
 }
 
 /**
@@ -95,8 +93,7 @@ double* GenSymm(double alpha, double beta, int Nyr, int Nxr) {
  * @param UPPER specifies whether the matrix is upper triangular
  * @param M pre-allocated matrix to be filled in symmetrically
  * */
-double* GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER) {
-    double* M = new double[Nyr*Nxr];
+void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M) {
     for (int i = 0; i < Nyr*Nxr; i++) {
         M[i] = 0;
     }
@@ -105,7 +102,6 @@ double* GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER) {
         M[i*Nyr+i] = alpha;
         if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
     }
-    return M;
 }
 
 /**

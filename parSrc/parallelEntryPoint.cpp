@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
     // Calculate final energy and write output
     b.SetEnergy();
     b.WriteVelocityFile();
+    std::cout << "Energy of velocity field: " << b.GetE() << std::endl;
 
     return 0;
 }

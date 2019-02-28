@@ -17,8 +17,9 @@ public:
     void SetIntegratedVelocity();
     void WriteVelocityFile();
     void SetEnergy();
+    double GetE()     const { return E; }
 private:
-    void WriteOf(double** Vel, double** M, std::ofstream &of, char id);
+    void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
     double ComputeR(double x, double y);
     double CalculateEnergyState(double* Ui, double* Vi);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
@@ -27,17 +28,17 @@ private:
     void AssembleMatrix(double* Vel, double** M);
     void UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double* dVel_dx, double* dVel_dy);
     void UpdateBoundsNonLinear(double* Vel, double* Other, double* Vel_Vel_Minus_1, double* Vel_Other_Minus_1, bool SELECT_U);
+    void CopyAndDelete(double* NextU, double* NextV);
 
     /// Burger parameters
     Model* model;
-    double** U;
-    double** V;
-    double* U0;
-    double* E;
+    double* U;
+    double* V;
     double* dVel_dx_2_coeffs;
     double* dVel_dy_2_coeffs;
     double* dVel_dx_coeffs;
     double* dVel_dy_coeffs;
+    double E;
 
     /// Caches for partitioning matrix
     double* upVel;

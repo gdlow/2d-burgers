@@ -18,14 +18,12 @@ Burgers2P::Burgers2P(Model &m) {
     model = &m;
 
     /// Get model parameters
-    int Nt = model->GetNt();
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
 
     /// Allocate memory to instance variables
-
-    /// U0
-    U0 = new double[Nyr*Nxr];
+    U = new double[Nyr*Nxr];
+    V = new double[Nyr*Nxr];
 
     /// Matrix coefficients
     dVel_dx_2_coeffs = new double[Nxr*Nxr];
@@ -38,35 +36,13 @@ Burgers2P::Burgers2P(Model &m) {
     downVel = new double[Nxr];
     leftVel = new double[Nyr];
     rightVel = new double[Nyr];
-
-    /// U, V
-    U = new double*[Nt];
-    V = new double*[Nt];
-    /// U[0] = V[0] = U0
-    for (int k = 1; k < Nt; k++) {
-        U[k] = new double[Nyr*Nxr];
-    }
-
-    /// E
-    E = new double[Nt];
 }
 
 /**
  * @brief Destructor: Deletes all allocated pointers in the class instance
  * */
 Burgers2P::~Burgers2P() {
-    /// Get model parameters
-    int Nt = model->GetNt();
-
-    /// Delete E
-    delete[] E;
-
     /// Delete U and V
-    for (int k = 1; k < Nt; k++) {
-        // U[0] = V[0] = U0 (not dynamically alloc)
-        delete[] U[k];
-        delete[] V[k];
-    }
     delete[] U;
     delete[] V;
 
@@ -81,9 +57,6 @@ Burgers2P::~Burgers2P() {
     delete[] dVel_dy_2_coeffs;
     delete[] dVel_dx_coeffs;
     delete[] dVel_dy_coeffs;
-
-    /// Delete U0
-    delete[] U0;
 
     /// model is not dynamically alloc
 }
@@ -111,7 +84,8 @@ void Burgers2P::SetInitialVelocity() {
             double x = loc_x0 + i*dx;
             double y = loc_y0 - j*dy;
             double r = ComputeR(x, y);
-            U0[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
@@ -128,11 +102,10 @@ void Burgers2P::SetIntegratedVelocity() {
 
 
     /// Compute U, V for every step k
-    U[0] = U0;
-    V[0] = U0;
     for (int k = 0; k < Nt-1; k++) {
-        U[k+1] = NextVelocityState(U[k], V[k], true);
-        V[k+1] = NextVelocityState(U[k], V[k], false);
+        double* NextU = NextVelocityState(U, V, true);
+        double* NextV = NextVelocityState(U, V, false);
+        CopyAndDelete(NextU, NextV);
     }
 }
 
@@ -156,10 +129,10 @@ void Burgers2P::WriteVelocityFile() {
     of.open("data.txt", ios::out | ios::trunc);
     of.precision(4); // 4 s.f.
 
-    /// Write U velocities
+    /// Write U velocity
     WriteOf(U, M, of, 'U');
 
-    /// Write V velocities
+    /// Write V velocity
     WriteOf(V, M, of, 'V');
     of.close();
 
@@ -177,45 +150,32 @@ void Burgers2P::WriteVelocityFile() {
  * @param &of reference to output file stream
  * @param id Supply 'U' or 'V'
  * */
-void Burgers2P::WriteOf(double** Vel, double** M, ofstream &of, char id) {
+void Burgers2P::WriteOf(double* Vel, double** M, ofstream &of, char id) {
     int loc_rank = model->GetRank();
     int Ny = model->GetNy();
     int Nx = model->GetNx();
-    int Nt = model->GetNt();
-    double dt = model->GetDt();
 
+    AssembleMatrix(Vel, M);
     if (loc_rank == 0) {
         of << id << " velocity field:" << endl;
-    }
-    for (int k = 0; k < Nt; k++) {
-        AssembleMatrix(Vel[k], M);
-        if (loc_rank == 0) {
-            of << "t = " << k * dt << ":" << endl;
-            for (int j = 0; j < Ny; j++) {
-                for (int i = 0; i < Nx; i++) {
-                    if (j == 0 || i == 0 || j == Ny - 1 || i == Nx - 1) {
-                        of << 0 << ' ';
-                    } else {
-                        of << M[j - 1][i - 1] << ' ';
-                    }
+        for (int j = 0; j < Ny; j++) {
+            for (int i = 0; i < Nx; i++) {
+                if (j == 0 || i == 0 || j == Ny - 1 || i == Nx - 1) {
+                    of << 0 << ' ';
+                } else {
+                    of << M[j - 1][i - 1] << ' ';
                 }
-                of << endl;
             }
+            of << endl;
         }
     }
 }
 
 /**
- * @brief Calculates and sets energy of each velocity field per timestamp
+ * @brief Calculates and sets energy of velocity field
  * */
 void Burgers2P::SetEnergy() {
-    /// Get Model parameters
-    int Nt = model->GetNt();
-
-    /// Calculate Energy
-    for (int k = 0; k < Nt; k++) {
-        E[k] = CalculateEnergyState(U[k], V[k]);
-    }
+    E = CalculateEnergyState(U, V);
 }
 
 /**
@@ -327,6 +287,20 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     return NextVel;
 }
 
+/**
+ * @brief Copies next state velocity into previous state, and deletes the temporary pointer
+ * */
+void Burgers2P::CopyAndDelete(double* NextU, double* NextV) {
+    /// Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    for (int i = 0; i < Nyr*Nxr; i++) {
+        U[i] = NextU[i];
+        V[i] = NextV[i];
+    }
+    delete[] NextU;
+    delete[] NextV;
+}
 /**
  * @brief Private helper function that sets matrix coefficients for differentials
  * */
