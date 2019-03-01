@@ -1,6 +1,5 @@
 # Compilers and flags
-CXX = g++
-MPIXX = mpicxx
+CXX = mpicxx
 CXXFLAGS = -std=c++11 -Wall -O2
 LDLIBS = -lblas
 
@@ -25,10 +24,10 @@ compile: $(OBJS_SER)
 
 # Build parallel code
 $(DIR_PAR)/%.o: %.cpp $(HDRS)
-	$(MPIXX) $(CXXFLAGS) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 compilep: $(OBJS_PAR)
-	$(MPIXX) -o $@ $^ $(LDLIBS)
+	$(CXX) -o $@ $^ $(LDLIBS)
 
 # Serial targets
 diff: compile
