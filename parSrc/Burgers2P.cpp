@@ -244,7 +244,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
 
     /// Compute first derivatives
-    // TODO: Check if it is faster using dsymmm
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
@@ -300,10 +299,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
  * @brief Copies next state velocity into previous state, and deletes the temporary pointer
  * */
 void Burgers2P::CopyAndDelete(double* NextU, double* NextV) {
-    /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
-
     /// Delete current U and V pointers
     delete[] U;
     delete[] V;
@@ -371,6 +366,8 @@ void Burgers2P::SetCaches(double* Vel) {
 
     /// Exchange up/down
     flag = 0;
+
+    // TODO: Test ISend / IRecv instead and while waiting, compute the other things
     /* Send down boundary to down and receive into up boundary */
     MPI_Sendrecv(myDownVel, Nxr, MPI_DOUBLE, down, flag, upVel, Nxr, MPI_DOUBLE, up, flag, vu, MPI_STATUS_IGNORE);
     /* Send up boundary to up and receive into down boundary */
