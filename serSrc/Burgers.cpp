@@ -63,17 +63,18 @@ void Burgers::SetInitialVelocity() {
 
     /// Reduced parameters
     int Nyr = Ny - 2;
+    int Nxr = Nx - 2;
 
     /// Compute U0;
-    for (int i = 0; i < Nx; i++) {
-        for (int j = 0; j < Ny; j++) {
+    for (int i = 0; i < Nxr; i++) {
+        for (int j = 0; j < Nyr; j++) {
             // Assumes x0 and y0 are identifying top LHS of matrix
-            double y = y0 - j*dy;
-            double x = x0 + i*dx;
+            double y = y0 - (j+1)*dy;
+            double x = x0 + (i+1)*dx;
             double r = ComputeR(x, y);
             // Store in column-major format
-            U[(i-1)*Nyr+(j-1)] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
-            V[(i-1)*Nyr+(j-1)] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
