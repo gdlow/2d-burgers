@@ -73,9 +73,6 @@ void printDebug(double* A, int Nyr, int Nxr, char c) {
  * @param M pre-allocated matrix to be filled in symmetrically
  * */
 void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        M[i] = 0;
-    }
     for (int i = 0; i < Nxr; i++) {
         if (i>0) M[i*Nyr+(i-1)] = beta;
         M[i*Nyr+i] = alpha;
@@ -94,53 +91,9 @@ void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
  * @param M pre-allocated matrix to be filled in symmetrically
  * */
 void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M) {
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        M[i] = 0;
-    }
-    for (int i = 0; i < Nxr; i++) {
+   for (int i = 0; i < Nxr; i++) {
         if (UPPER && i>0) M[i*Nyr+(i-1)] = beta;
         M[i*Nyr+i] = alpha;
         if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
-    }
-}
-
-/**
- * @brief Performs element-wise multiplication of 2 matrices
- * @param Ui pointer to column-major, Velocity matrix. Always the one offset
- * @param Vi pointer to column-major, Other matrix. Is the one NOT offset
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param offset_i is there an i offset?
- * @param offset_j is there a j offset?
- * @param p prefactor
- * */
-double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool offset_j, double p) {
-    double* M = new double[Nyr*Nxr];
-    if (offset_i) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            if (i < Nyr) M[i] = 0;
-            else M[i] = p * Ui[i-Nyr] * Vi[i];
-        }
-    }
-    else if (offset_j) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            if (i % Nyr == 0) M[i] = 0;
-            else M[i] = p * Ui[i-1] * Vi[i];
-        }
-    }
-    else {
-        for (int i = 0; i <Nyr*Nxr; i++) {
-            M[i] = p * Ui[i] * Vi[i];
-        }
-    }
-    return M;
-}
-
-/**
- * @brief Sets the entire 1D array to 0
- * */
-void SetZeroes(double* arr, int sz) {
-    for (int i = 0; i < sz; i++) {
-        arr[i] = 0;
     }
 }

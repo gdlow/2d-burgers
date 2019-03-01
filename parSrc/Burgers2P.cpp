@@ -27,10 +27,10 @@ Burgers2P::Burgers2P(Model &m) {
     V = new double[Nyr*Nxr];
 
     /// Matrix coefficients
-    dVel_dx_2_coeffs = new double[Nxr*Nxr];
-    dVel_dy_2_coeffs = new double[Nyr*Nyr];
-    dVel_dx_coeffs = new double[Nxr*Nxr];
-    dVel_dy_coeffs = new double[Nyr*Nyr];
+    dVel_dx_2_coeffs = new double[Nxr*Nxr]();
+    dVel_dy_2_coeffs = new double[Nyr*Nyr]();
+    dVel_dx_coeffs = new double[Nxr*Nxr]();
+    dVel_dy_coeffs = new double[Nyr*Nyr]();
 
     /// Caches
     upVel = new double[Nxr];
@@ -221,6 +221,10 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double dy = model->GetDy();
     double b = model->GetB();
 
+    /// Get ranks
+    int up = model->GetUp();
+    int left = model->GetLeft();
+
     /// Set aliases for computation
     double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
@@ -234,57 +238,60 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* dVel_dy_2 = new double[Nyr*Nxr];
     double* dVel_dx = new double[Nyr*Nxr];
     double* dVel_dy = new double[Nyr*Nxr];
-    double* Vel_Vel = nullptr;
-    double* Vel_Other = nullptr;
-    double* Vel_Vel_Minus_1 = nullptr;
-    double* Vel_Other_Minus_1 = nullptr;
 
     /// Compute second derivatives
     F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nyr, 0.0, dVel_dx_2, Nyr);
     F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
 
     /// Compute first derivatives
+    // TODO: Check if it is faster using dsymmm
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
     F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
-    /// Compute b terms
-    if (SELECT_U) {
-        Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dx);
-        Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dy);
-        Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, true, false, b/dx);
-        Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, false, true, b/dy);
-
-
-    }
-    else {
-        Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dy);
-        Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dx);
-        Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, false, true, b/dy);
-        Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, true, false, b/dx);
-    }
-
     UpdateBoundsLinear(dVel_dx_2, dVel_dy_2, dVel_dx, dVel_dy);
-    UpdateBoundsNonLinear(Vel, Other, Vel_Vel_Minus_1, Vel_Other_Minus_1, SELECT_U);
 
     /// Matrix addition through all terms
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
-                (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
-        NextVel[i] *= dt;
-        NextVel[i] += Vel[i];
-    }
+    if (SELECT_U) {
+        for (int i = 0; i < Nyr*Nxr; i++) {
+            double Vel_Vel = b/dx * Vel[i] * Vel[i];
+            double Vel_Other = b/dy * Vel[i] * Other[i];
+            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : b/dx * Vel[i-Nyr] * Vel[i];
+            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : b/dy * Vel[i-1] * Other[i];
 
+            // Update non-linear BC
+            if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = b/dx * leftVel[i] * Vel[i];
+            if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = b/dy * upVel[i/Nyr] * Other[i];
+
+            NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
+                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+            NextVel[i] *= dt;
+            NextVel[i] += Vel[i];
+        }
+    }
+    else {
+        for (int i = 0; i < Nyr*Nxr; i++) {
+            double Vel_Vel = b/dy * Vel[i] * Vel[i];
+            double Vel_Other = b/dx * Vel[i] * Other[i];
+            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : b/dy * Vel[i-1] * Vel[i];
+            double Vel_Other_Minus_1 = (i < Nyr)? 0 : b/dx * Vel[i-Nyr] * Other[i];
+
+            // Update non-linear BC
+            if (i < Nyr && left >= 0) Vel_Other_Minus_1 = b/dx * leftVel[i] * Other[i];
+            if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = b/dy * upVel[i/Nyr] * Vel[i];
+
+            NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
+                    (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+            NextVel[i] *= dt;
+            NextVel[i] += Vel[i];
+        }
+    }
     /// Delete term array pointers
     delete[] dVel_dx_2;
     delete[] dVel_dy_2;
     delete[] dVel_dx;
     delete[] dVel_dy;
-    delete[] Vel_Vel;
-    delete[] Vel_Other;
-    delete[] Vel_Vel_Minus_1;
-    delete[] Vel_Other_Minus_1;
 
     return NextVel;
 }
@@ -296,12 +303,16 @@ void Burgers2P::CopyAndDelete(double* NextU, double* NextV) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        U[i] = NextU[i];
-        V[i] = NextV[i];
-    }
-    delete[] NextU;
-    delete[] NextV;
+
+    /// Delete current U and V pointers
+    delete[] U;
+    delete[] V;
+    U = nullptr;
+    V = nullptr;
+
+    /// Set U and V to pointers to NextU and NextV
+    U = NextU;
+    V = NextV;
 }
 /**
  * @brief Private helper function that sets matrix coefficients for differentials
@@ -338,7 +349,6 @@ void Burgers2P::SetCaches(double* Vel) {
     int left = model->GetLeft();
     int right = model->GetRight();
 
-
     /// Get communicator
     MPI_Comm vu = model->GetComm();
     int flag;
@@ -373,12 +383,6 @@ void Burgers2P::SetCaches(double* Vel) {
     /* Send left boundary to left and receive into right boundary */
     MPI_Sendrecv(myLeftVel, Nyr, MPI_DOUBLE, left, flag, rightVel, Nyr, MPI_DOUBLE, right, flag, vu, MPI_STATUS_IGNORE);
 
-    /// Handle boundaries
-    if (up < 0) SetZeroes(upVel, Nxr);
-    if (down < 0) SetZeroes(downVel, Nxr);
-    if (left < 0) SetZeroes(leftVel, Nyr);
-    if (right < 0) SetZeroes(rightVel, Nyr);
-
     delete[] myUpVel;
     delete[] myDownVel;
     delete[] myLeftVel;
@@ -402,63 +406,33 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double*
     double ay = model->GetAy();
     double c = model->GetC();
 
+    /// Get ranks
+    int up = model->GetUp();
+    int down = model->GetDown();
+    int left = model->GetLeft();
+    int right = model->GetRight();
+
     /// Modify boundaries on this sub-matrix
 
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
-        // left
-        dVel_dx_2[j] += c/pow(dx,2.0)*leftVel[j];
-        dVel_dx[j] -= ax/dx*leftVel[j];
-
-        // right
-        dVel_dx_2[(Nxr-1)*Nyr+j] += c/pow(dx,2.0)*rightVel[j];
+        if (left >= 0) {
+            dVel_dx_2[j] += c/pow(dx,2.0)*leftVel[j];
+            dVel_dx[j] -= ax/dx*leftVel[j];
+        }
+        if (right >= 0) {
+            dVel_dx_2[(Nxr-1)*Nyr+j] += c/pow(dx,2.0)*rightVel[j];
+        }
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
-        // up
-        dVel_dy_2[i*Nyr] += c/pow(dy,2.0)*upVel[i];
-        dVel_dy[i*Nyr] -= ay/dy*upVel[i];
-
-        // down
-        dVel_dy_2[i*Nyr+(Nyr-1)] += c/pow(dy,2.0)*downVel[i];
-    }
-}
-
-/**
- * @brief Private helper function that updates the non-linear boundary conditions for the program's sub-matrix
- * @param Vel pointer to Vel in NextVelocityState()
- * @param Other pointer to Other in NextVelocityState()
- * @param Vel_Vel_Minus_1 pointer to Vel_Vel_Minus_1 in NextVelocityState()
- * @param Vel_Other_Minus_1 pointer to Vel_Other_Minus_1 in NextVelocityState()
- * @param SELECT_U true if the computation is for U
- * */
-void Burgers2P::UpdateBoundsNonLinear(double* Vel, double* Other, double* Vel_Vel_Minus_1, double* Vel_Other_Minus_1, bool SELECT_U) {
-    /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
-    double dx = model->GetDx();
-    double dy = model->GetDy();
-    double b = model->GetB();
-
-    if (SELECT_U) {
-        // up
-        for (int i = 0; i < Nxr; i++) {
-            Vel_Other_Minus_1[i*Nyr] = b/dy * upVel[i] * Other[i*Nyr];
+        if (up >= 0) {
+            dVel_dy_2[i*Nyr] += c/pow(dy,2.0)*upVel[i];
+            dVel_dy[i*Nyr] -= ay/dy*upVel[i];
         }
-        // left
-        for (int j = 0; j < Nyr; j++) {
-            Vel_Vel_Minus_1[j] = b/dx * leftVel[j] * Vel[j];
-        }
-    }
-    else {
-        // up
-        for (int i = 0; i < Nxr; i++) {
-            Vel_Vel_Minus_1[i*Nyr] = b/dy * upVel[i] * Vel[i*Nyr];
-        }
-        // left
-        for (int j = 0; j < Nyr; j++) {
-            Vel_Other_Minus_1[j] = b/dx * leftVel[j] * Other[j];
+        if (down >= 0) {
+            dVel_dy_2[i*Nyr+(Nyr-1)] += c/pow(dy,2.0)*downVel[i];
         }
     }
 }
