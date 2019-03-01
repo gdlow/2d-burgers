@@ -229,8 +229,12 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
 
-    /// Set caches for Vel
-    SetCaches(Vel);
+    /// Create MPI requests and stats for this sub-matrix
+    MPI_Request* reqs = new MPI_Request[8];
+    MPI_Status* stats = new MPI_Status[8];
+
+    /// Set caches for Vel (Non-blocking)
+    SetCaches(Vel, reqs);
 
     /// Generate term arrays
     double* NextVel = new double[Nyr*Nxr];
@@ -249,7 +253,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
-    UpdateBoundsLinear(dVel_dx_2, dVel_dy_2, dVel_dx, dVel_dy);
+    UpdateBoundsLinear(dVel_dx_2, dVel_dy_2, dVel_dx, dVel_dy, reqs, stats);
 
     /// Matrix addition through all terms
     if (SELECT_U) {
@@ -291,6 +295,8 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     delete[] dVel_dy_2;
     delete[] dVel_dx;
     delete[] dVel_dy;
+    delete[] reqs;
+    delete[] stats;
 
     return NextVel;
 }
@@ -333,7 +339,7 @@ void Burgers2P::SetMatrixCoefficients() {
  * @brief Private helper function that sets the boundary condition velocities
  * @param Vel pointer to U[k] or V[k]
  * */
-void Burgers2P::SetCaches(double* Vel) {
+void Burgers2P::SetCaches(double* Vel, MPI_Request* reqs) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -366,19 +372,21 @@ void Burgers2P::SetCaches(double* Vel) {
 
     /// Exchange up/down
     flag = 0;
-
-    // TODO: Test ISend / IRecv instead and while waiting, compute the other things
     /* Send down boundary to down and receive into up boundary */
-    MPI_Sendrecv(myDownVel, Nxr, MPI_DOUBLE, down, flag, upVel, Nxr, MPI_DOUBLE, up, flag, vu, MPI_STATUS_IGNORE);
+    MPI_Isend(myDownVel, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[0]);
+    MPI_Irecv(upVel, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[1]);
     /* Send up boundary to up and receive into down boundary */
-    MPI_Sendrecv(myUpVel, Nxr, MPI_DOUBLE, up, flag, downVel, Nxr, MPI_DOUBLE, down, flag, vu, MPI_STATUS_IGNORE);
+    MPI_Isend(myUpVel, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[2]);
+    MPI_Irecv(downVel, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[3]);
 
     /// Exchange left/right
     flag = 1;
     /* Send right boundary to right and receive into left boundary */
-    MPI_Sendrecv(myRightVel, Nyr, MPI_DOUBLE, right, flag, leftVel, Nyr, MPI_DOUBLE, left, flag, vu, MPI_STATUS_IGNORE);
+    MPI_Isend(myRightVel, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[4]);
+    MPI_Irecv(leftVel, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[5]);
     /* Send left boundary to left and receive into right boundary */
-    MPI_Sendrecv(myLeftVel, Nyr, MPI_DOUBLE, left, flag, rightVel, Nyr, MPI_DOUBLE, right, flag, vu, MPI_STATUS_IGNORE);
+    MPI_Isend(myLeftVel, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[6]);
+    MPI_Irecv(rightVel, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[7]);
 
     delete[] myUpVel;
     delete[] myDownVel;
@@ -393,7 +401,7 @@ void Burgers2P::SetCaches(double* Vel) {
  * @param dVel_dx pointer to dVel_dx in NextVelocityState()
  * @param dVel_dy pointer to dVel_dy in NextVelocityState()
  * */
-void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double* dVel_dx, double* dVel_dy) {
+void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double* dVel_dx, double* dVel_dy, MPI_Request* reqs, MPI_Status* stats) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -408,6 +416,9 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double*
     int down = model->GetDown();
     int left = model->GetLeft();
     int right = model->GetRight();
+
+    /// MPI wait for all comms to finish
+    MPI_Waitall(8, reqs, stats);
 
     /// Modify boundaries on this sub-matrix
 
