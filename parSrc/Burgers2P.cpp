@@ -5,6 +5,7 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers2P.h"
+#include <iostream>
 
 using namespace std;
 
@@ -106,6 +107,7 @@ void Burgers2P::SetIntegratedVelocity() {
         double* NextU = NextVelocityState(U, V, true);
         double* NextV = NextVelocityState(U, V, false);
         CopyAndDelete(NextU, NextV);
+        if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
 
