@@ -34,8 +34,8 @@ Burgers2P::Burgers2P(Model &m) {
     /// Matrix coefficients
     dVel_dx_2_coeffs = new double[Nxr*Nxr];
     dVel_dy_2_coeffs = new double[Nyr*Nyr];
-    dVel_dx_coeffs = new double[Nxr*Nxr]();
-    dVel_dy_coeffs = new double[Nyr*Nyr]();
+    dVel_dx_coeffs = new double[Nxr*Nxr];
+    dVel_dy_coeffs = new double[Nyr*Nyr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -245,10 +245,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
 
-    /// Create MPI requests and stats for this sub-matrix
-    MPI_Request* reqs = new MPI_Request[8];
-    MPI_Status* stats = new MPI_Status[8];
-
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
 
@@ -304,9 +300,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             NextVel[i] += Vel[i];
         }
     }
-    /// Delete term array pointers
-    delete[] reqs;
-    delete[] stats;
 
     return NextVel;
 }
