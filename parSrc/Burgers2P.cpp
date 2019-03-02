@@ -5,7 +5,6 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers2P.h"
-#include <iostream>
 
 using namespace std;
 
@@ -129,7 +128,6 @@ void Burgers2P::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
-        if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
 
@@ -168,6 +166,13 @@ void Burgers2P::WriteVelocityFile() {
 }
 
 /**
+ * @brief Calculates and sets energy of velocity field
+ * */
+void Burgers2P::SetEnergy() {
+    E = CalculateEnergyState(U, V);
+}
+
+/**
  * @brief Private helper function to write to output stream
  * @param Vel pointer to either U or V
  * @param M 2D pointer representing global matrix (should have been allocated memory)
@@ -193,13 +198,6 @@ void Burgers2P::WriteOf(double* Vel, double** M, ofstream &of, char id) {
             of << endl;
         }
     }
-}
-
-/**
- * @brief Calculates and sets energy of velocity field
- * */
-void Burgers2P::SetEnergy() {
-    E = CalculateEnergyState(U, V);
 }
 
 /**
@@ -229,8 +227,8 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
 
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * @param Ui U velocity per timestamp (i.e. supply U[k])
- * @param Vi V velocity per timestamp (i.e. supply V[k])
+ * @param Ui U velocity per timestamp
+ * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
 double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
@@ -334,7 +332,8 @@ void Burgers2P::SetMatrixCoefficients() {
 
 /**
  * @brief Private helper function that sets the boundary condition velocities
- * @param Vel pointer to U[k] or V[k]
+ * @brief Uses non-blocking MPI send and receives to exchange boundaries
+ * @param Vel pointer to U or V
  * */
 void Burgers2P::SetCaches(double* Vel) {
     /// Generate new MPI request and stats
@@ -382,10 +381,8 @@ void Burgers2P::SetCaches(double* Vel) {
 
 /**
  * @brief Private helper function that updates the linear boundary conditions for the program's sub-matrix
- * @param dVel_dx_2 pointer to dVel_dx_2 in NextVelocityState()
- * @param dVel_dy_2 pointer to dVel_dy_2 in NextVelocityState()
- * @param dVel_dx pointer to dVel_dx in NextVelocityState()
- * @param dVel_dy pointer to dVel_dy in NextVelocityState()
+ * @param dVel_2 pointer to dVel_2 in NextVelocityState()
+ * @param dVel pointer to dVel in NextVelocityState()
  * */
 void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
     /// Get model parameters
@@ -433,7 +430,7 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
 }
 
 /**
- * @brief Private helper function that assembles the global matrix into a preallocated M
+ * @brief Private helper function that assembles the global matrix into a pre-allocated M
  * @brief Arranges data into row-major format from a column-major format in the 1D pointer Vel
  * @param Vel 1D pointer to Vel in column-major format
  * @param M 2D pointer (pre-allocated memory) to be filled in row-major format

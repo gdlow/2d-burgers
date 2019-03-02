@@ -100,17 +100,17 @@ void Model::SetNumerics() {
     Nx = 501;
     Ny = 501;
     Nt = 501;
-    // dx,dy and dt are dependent on L,T and Nx,Ny,Nt:
+    /// dx,dy and dt are dependent on L,T and Nx,Ny,Nt:
     dx = Lx / (Nx-1);
     dy = Ly / (Ny-1);
     dt = T / (Nt-1);
-    // x0 and y0 represent the top LHS of the matrix:
+    /// x0 and y0 represent the top LHS of the matrix:
     x0 = -Lx/2.0;
     y0 = Ly/2.0;
-    // b/dx and b/dy saves computation time in the future
+    /// b/dx and b/dy saves computation time in the future
     bdx = b/dx;
     bdy = b/dy;
-    // alpha and beta used for BLAS routines
+    /// alpha and beta used for BLAS routines
     alpha_dx_2 = (-2.0*c)/pow(dx,2.0);
     alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
     beta_dx_2 = c/pow(dx,2.0);
@@ -258,6 +258,9 @@ int Model::GetDisplY() const {
     return displs_y[loc_coord[0]];
 }
 
+/**
+ * @brief Gets submatrix size
+ * */
 int Model::GetLocNyrNxr() const {
     return GetLocNxr() * GetLocNyr();
 }
