@@ -81,27 +81,13 @@ void GenSymmBanded(double alpha, double beta, int N, double* M) {
     }
 }
 
-void GenTrmmBanded(double alpha, double beta, int N, bool IS_UPPER, double* M) {
-    /// M should be of size (2*N)
-
-    if (IS_UPPER) {
-        /// Generate first row <=> upper diagonal
-        for (int i = 1; i < N; i++) {
-            M[i*N] = beta;
-        }
-        /// Generate second row <=> leading diagonal
-        for (int i = 0; i < N; i++) {
-            M[i*N+1] = alpha;
-        }
+void GenTrmmBanded(double alpha, double beta, int N, double* M) {
+    /// Generate first row <=> leading diagonal
+    for (int i = 0; i < N; i++) {
+        M[i*N] = alpha;
     }
-    else {
-        /// Generate first row <=> leading diagonal
-        for (int i = 0; i < N; i++) {
-            M[i*N] = alpha;
-        }
-        /// Generate second row  <=> lower diagonal
-        for (int i = 0; i < N-1; i++) {
-            M[i*N+1] = beta;
-        }
+    /// Generate second row  <=> lower diagonal
+    for (int i = 0; i < N-1; i++) {
+        M[i*N+1] = beta;
     }
 }

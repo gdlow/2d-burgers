@@ -342,8 +342,8 @@ void Burgers2P::SetMatrixCoefficients() {
     /// Set coefficients (alpha along the LD)
     GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
     GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
-    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, false, dVel_dx_coeffs);
-    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, false, dVel_dy_coeffs);
+    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, dVel_dx_coeffs);
+    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, dVel_dy_coeffs);
 }
 
 /**
