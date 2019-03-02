@@ -244,7 +244,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* dVel_dy = new double[NyrNxr];
 
     /// Compute second derivatives
-    for (int i = 0; i < Nyr; i ++) {
+    for (int i = 0; i < Nyr; i++) {
         F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_dx_2[i]), Nyr);
     }
     for (int i = 0; i < NyrNxr; i += Nyr) {

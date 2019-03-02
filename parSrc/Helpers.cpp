@@ -123,21 +123,21 @@ void GenTrmmBanded(double alpha, double beta, int N, bool IS_UPPER, double* M) {
     if (IS_UPPER) {
         /// Generate first row <=> upper diagonal
         for (int i = 1; i < N; i++) {
-            M[i] = beta;
+            M[i*N] = beta;
         }
         /// Generate second row <=> leading diagonal
-        for (int i = N; i < 2*N; i++) {
-            M[i] = alpha;
+        for (int i = 0; i < N; i++) {
+            M[i*N+1] = alpha;
         }
     }
     else {
         /// Generate first row <=> leading diagonal
         for (int i = 0; i < N; i++) {
-            M[i] = alpha;
+            M[i*N] = alpha;
         }
         /// Generate second row  <=> lower diagonal
-        for (int i = N; i < 2*N-1; i++) {
-            M[i] = beta;
+        for (int i = 0; i < N-1; i++) {
+            M[i*N+1] = beta;
         }
     }
 }
