@@ -4,7 +4,6 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers.h"
-#include <iostream>
 
 using namespace std;
 
@@ -108,7 +107,6 @@ void Burgers::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
-        cout << "step: " << k << "\n";
     }
 }
 
@@ -194,8 +192,8 @@ void Burgers::SetEnergy() {
 
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * @param Ui U velocity per timestamp (i.e. supply U[k])
- * @param Vi V velocity per timestamp (i.e. supply V[k])
+ * @param Ui U velocity per timestamp
+ * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
 double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {

@@ -19,8 +19,8 @@ public:
     double GetE()     const { return E; }
 private:
     double ComputeR(double x, double y);
-    double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
+    double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
 
     /// Burger parameters
     Model* model;

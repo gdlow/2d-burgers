@@ -1,7 +1,6 @@
 #include "Helpers.h"
 #include <iostream>
 
-
 /* Helper functions with 2D matrices */
 
 /**
@@ -40,33 +39,13 @@ void wrap(double* A, int Nyr, int Nxr, double** res) {
 }
 
 /**
- * @brief Print the 2D representation of a column-major 1D pointer for debugging
- * @param A 1D pointer in column-major format
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param c ID for printing
+ * @brief Generates a symmetric, banded matrix stored in banded-format
+ * @param alpha constant along the leading diagonal
+ * @param beta constant along the sub/super-diagonal
+ * @param N number of rows/columns (should be a square matrix)
+ * @param M pre-allocated with N*N memory
  * */
-void printDebug(double* A, int Nyr, int Nxr, char c) {
-    double ** res = wrap(A, Nyr, Nxr);
-    std::cout << "PrintDebug " << c << ":" << std::endl;
-    for (int j = 0; j < Nyr; j++) {
-        for (int i = 0; i < Nxr; i++) {
-            std::cout << res[j][i] << ' ';
-        }
-        std::cout << std::endl;
-    }
-
-    // destroy res
-    for (int j = 0; j < Nyr; j++) {
-        delete[] res[j];
-    }
-    delete[] res;
-}
-
 void GenSymmBanded(double alpha, double beta, int N, double* M) {
-    /// M should be of size (N*N)
-    /// IMPORTANT: This fills it in column-major format!
-
     /// Generate first row <=> upper diagonal
     for (int i = 1; i < N; i++) {
         M[i*N] = beta;
@@ -81,6 +60,13 @@ void GenSymmBanded(double alpha, double beta, int N, double* M) {
     }
 }
 
+/**
+ * @brief Generates a lower triangular, banded matrix stored in banded-format
+ * @param alpha constant along the leading diagonal
+ * @param beta constant along the sub-diagonal
+ * @param N number of rows/columns (should be a square matrix)
+ * @param M pre-allocated with N*N memory
+ * */
 void GenTrmmBanded(double alpha, double beta, int N, double* M) {
     /// Generate first row <=> leading diagonal
     for (int i = 0; i < N; i++) {
