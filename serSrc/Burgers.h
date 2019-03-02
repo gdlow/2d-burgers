@@ -21,7 +21,6 @@ private:
     double ComputeR(double x, double y);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
-    void CopyAndDelete(double* NextU, double* NextV);
 
     /// Burger parameters
     Model* model;
@@ -32,5 +31,9 @@ private:
     double* dVel_dx_coeffs;
     double* dVel_dy_coeffs;
     double E;
+
+    /// Term arrays
+    double* dVel_2;
+    double* dVel;
 };
 #endif //CLASS_BURGERS

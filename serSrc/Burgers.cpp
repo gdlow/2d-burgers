@@ -31,6 +31,10 @@ Burgers::Burgers(Model &m) {
     dVel_dy_2_coeffs = new double[Nyr*Nyr];
     dVel_dx_coeffs = new double[Nxr*Nxr];
     dVel_dy_coeffs = new double[Nyr*Nyr];
+
+    /// Term arrays
+    dVel_2 = new double[Nyr*Nxr];
+    dVel = new double[Nyr*Nxr];
 }
 
 /**
@@ -44,7 +48,12 @@ Burgers::~Burgers() {
     delete[] dVel_dy_coeffs;
 
     /// Delete U and V
-    delete[] U; delete[] V;
+    delete[] U;
+    delete[] V;
+
+    /// Delete term arrays
+    delete[] dVel_2;
+    delete[] dVel;
 
     /// model is not dynamically alloc
 }
@@ -93,7 +102,11 @@ void Burgers::SetIntegratedVelocity() {
     for (int k = 0; k < Nt-1; k++) {
         double* NextU = NextVelocityState(U, V, true);
         double* NextV = NextVelocityState(U, V, false);
-        CopyAndDelete(NextU, NextV);
+        /// Delete current pointer and point to NextVel
+        delete[] U;
+        delete[] V;
+        U = NextU;
+        V = NextV;
     }
 }
 
@@ -188,9 +201,8 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     int Ny = model->GetNy();
     int Nx = model->GetNx();
     double dt = model->GetDt();
-    double dx = model->GetDx();
-    double dy = model->GetDy();
-    double b = model->GetB();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
 
     /// Reduced parameters
     int Nyr = Ny - 2;
@@ -200,81 +212,50 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
 
-    /// Generate term arrays
+    /// Generate NextVel
     double* NextVel = new double[Nyr*Nxr];
-    double* dVel_dx_2 = new double[Nyr*Nxr];
-    double* dVel_dy_2 = new double[Nyr*Nxr];
-    double* dVel_dx = new double[Nyr*Nxr];
-    double* dVel_dy = new double[Nyr*Nxr];
-    double* Vel_Vel = nullptr;
-    double* Vel_Other = nullptr;
-    double* Vel_Vel_Minus_1 = nullptr;
-    double* Vel_Other_Minus_1 = nullptr;
 
-    /// Compute second derivatives
-    F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nyr, 0.0, dVel_dx_2, Nyr);
-    F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
-
-    /// Compute first derivatives
-    F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
-    F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
-    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, -1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
-    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, -1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
-
-    /// Compute b terms
-    if (SELECT_U) {
-        Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dx);
-        Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dy);
-        Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, true, false, b/dx);
-        Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, false, true, b/dy);
+    /// Compute first & second derivatives
+    // x
+    for (int i = 0; i < Nyr; i++) {
+        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
+        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
     }
-    else {
-        Vel_Vel = MatMul(Vel, Vel, Nyr, Nxr, false, false, b/dy);
-        Vel_Other = MatMul(Vel, Other, Nyr, Nxr, false, false, b/dx);
-        Vel_Vel_Minus_1 = MatMul(Vel, Vel, Nyr, Nxr, false, true, b/dy);
-        Vel_Other_Minus_1 = MatMul(Vel, Other, Nyr, Nxr, true, false, b/dx);
+    // y
+    for (int i = 0; i < Nyr*Nxr; i += Nyr) {
+        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
+        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
     }
 
     /// Matrix addition through all terms
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] + dVel_dx[i] + dVel_dy[i] -
-                     (Vel_Vel[i] + Vel_Other[i] - Vel_Vel_Minus_1[i] - Vel_Other_Minus_1[i]);
-        NextVel[i] *= dt;
-        NextVel[i] += Vel[i];
-    }
+    if (SELECT_U) {
+        for (int i = 0; i < Nyr*Nxr; i++) {
+            double Vel_Vel = bdx * Vel[i] * Vel[i];
+            double Vel_Other = bdy * Vel[i] * Other[i];
+            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
+            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
 
-    /// Delete pointers
-    delete[] dVel_dx_2;
-    delete[] dVel_dy_2;
-    delete[] dVel_dx;
-    delete[] dVel_dy;
-    delete[] Vel_Vel;
-    delete[] Vel_Other;
-    delete[] Vel_Vel_Minus_1;
-    delete[] Vel_Other_Minus_1;
+            NextVel[i] = dVel_2[i] - dVel[i] -
+                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+            NextVel[i] *= dt;
+            NextVel[i] += Vel[i];
+        }
+    }
+    else {
+        for (int i = 0; i < Nyr*Nxr; i++) {
+            double Vel_Vel = bdy * Vel[i] * Vel[i];
+            double Vel_Other = bdx * Vel[i] * Other[i];
+            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
+            double Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
+
+            NextVel[i] = dVel_2[i] - dVel[i] -
+                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+            NextVel[i] *= dt;
+            NextVel[i] += Vel[i];
+        }
+    }
 
     return NextVel;
-}
-
-/**
- * @brief Copies next state velocity into previous state, and deletes the temporary pointer
- * */
-void Burgers::CopyAndDelete(double* NextU, double* NextV) {
-    /// Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-
-    /// Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        U[i] = NextU[i];
-        V[i] = NextV[i];
-    }
-
-    delete[] NextU;
-    delete[] NextV;
 }
 
 /**
@@ -284,21 +265,26 @@ void Burgers::SetMatrixCoefficients() {
     /// Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
-    double dx = model->GetDx();
-    double dy = model->GetDy();
-    double ax = model->GetAx();
-    double ay = model->GetAy();
-    double c = model->GetC();
 
     /// Reduced parameters
     int Nyr = Ny - 2;
     int Nxr = Nx - 2;
 
-    /// Generate and set coefficients
-    GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr, dVel_dx_2_coeffs);
-    GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr, dVel_dy_2_coeffs);
-    GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true, dVel_dx_coeffs);
-    GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false, dVel_dy_coeffs);
+    /// Burger constants
+    double alpha_dx_2 = model->GetAlphaDx_2();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double alpha_dy_2 = model->GetAlphaDy_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+    double alpha_dx_1 = model->GetAlphaDx_1();
+    double beta_dx_1 = model->GetBetaDx_1();
+    double alpha_dy_1 = model->GetAlphaDy_1();
+    double beta_dy_1 = model->GetBetaDy_1();
+
+    /// Set coefficients (alpha along the LD)
+    GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
+    GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
+    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, dVel_dx_coeffs);
+    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, dVel_dy_coeffs);
 }
 
 /**

@@ -1,6 +1,7 @@
 #include <iostream>
 #include "Model.h"
 #include "ParseException.h"
+#include <cmath>
 
 using namespace std;
 
@@ -83,4 +84,16 @@ void Model::SetNumerics() {
     // x0 and y0 represent the top LHS of the matrix:
     x0 = -Lx/2.0;
     y0 = Ly/2.0;
+    // b/dx and b/dy saves computation time in the future
+    bdx = b/dx;
+    bdy = b/dy;
+    // alpha and beta used for BLAS routines
+    alpha_dx_2 = (-2.0*c)/pow(dx,2.0);
+    alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
+    beta_dx_2 = c/pow(dx,2.0);
+    beta_dy_2 = c/pow(dy,2.0);
+    alpha_dx_1 = ax/dx;
+    alpha_dy_1 = ay/dy;
+    beta_dx_1 = -ax/dx;
+    beta_dy_1 = -ay/dy;
 }

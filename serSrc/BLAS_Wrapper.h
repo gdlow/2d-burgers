@@ -14,6 +14,17 @@ double F77NAME(dcopy)(
         const double *y, const int& incy
 );
 
+/* Level 2 functions */
+void F77NAME(dgbmv)(
+        const char& trans, const int& m,
+        const int& n, const int& kl,
+        const int& ku, const double& alpha,
+        const double* A, const int& lda,
+        const double* x, const int& incx,
+        const double& beta, double* y,
+        const int& incy
+);
+
 /* Level 3 functions */
 void F77NAME(dgemm) (
         const char& trans, const char& transb,

@@ -63,76 +63,31 @@ void printDebug(double* A, int Nyr, int Nxr, char c) {
     delete[] res;
 }
 
-/**
- * @brief Generates a symmetrical, square matrix for getting matrix coefficients
- * @brief Stored in column-major format
- * @param alpha prefactor along the leading diagonal
- * @param beta prefactor along the banded rows above and below
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param M pre-allocated matrix to be filled in symmetrically
- * */
-void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        M[i] = 0;
+void GenSymmBanded(double alpha, double beta, int N, double* M) {
+    /// M should be of size (N*N)
+    /// IMPORTANT: This fills it in column-major format!
+
+    /// Generate first row <=> upper diagonal
+    for (int i = 1; i < N; i++) {
+        M[i*N] = beta;
     }
-    for (int i = 0; i < Nxr; i++) {
-        if (i>0) M[i*Nyr+(i-1)] = beta;
-        M[i*Nyr+i] = alpha;
-        if (i<Nxr-1) M[i*Nyr+(i+1)] = beta;
+    /// Generate second row <=> leading diagonal
+    for (int i = 0; i < N; i++) {
+        M[i*N+1] = alpha;
+    }
+    /// Generate third row <=> lower diagonal
+    for (int i = 0; i < N-1; i++) {
+        M[i*N+2] = beta;
     }
 }
 
-/**
- * @brief Generates a symmetrical, square matrix for getting matrix coefficients
- * @brief Stored in column-major format
- * @param alpha prefactor along the leading diagonal
- * @param beta prefactor along the banded row either above OR below
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param UPPER specifies whether the matrix is upper triangular
- * @param M pre-allocated matrix to be filled in symmetrically
- * */
-void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M) {
-    for (int i = 0; i < Nyr*Nxr; i++) {
-        M[i] = 0;
+void GenTrmmBanded(double alpha, double beta, int N, double* M) {
+    /// Generate first row <=> leading diagonal
+    for (int i = 0; i < N; i++) {
+        M[i*N] = alpha;
     }
-    for (int i = 0; i < Nxr; i++) {
-        if (UPPER && i>0) M[i*Nyr+(i-1)] = beta;
-        M[i*Nyr+i] = alpha;
-        if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
+    /// Generate second row  <=> lower diagonal
+    for (int i = 0; i < N-1; i++) {
+        M[i*N+1] = beta;
     }
 }
-
-/**
- * @brief Performs element-wise multiplication of 2 matrices
- * @param Ui pointer to column-major, Velocity matrix. Always the one offset
- * @param Vi pointer to column-major, Other matrix. Is the one NOT offset
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param offset_i is there an i offset?
- * @param offset_j is there a j offset?
- * @param p prefactor
- * */
-double* MatMul(double* Ui, double* Vi, int Nyr, int Nxr, bool offset_i, bool offset_j, double p) {
-    double* M = new double[Nyr*Nxr];
-    if (offset_i) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            if (i < Nyr) M[i] = 0;
-            else M[i] = p * Ui[i-Nyr] * Vi[i];
-        }
-    }
-    else if (offset_j) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            if (i % Nyr == 0) M[i] = 0;
-            else M[i] = p * Ui[i-1] * Vi[i];
-        }
-    }
-    else {
-        for (int i = 0; i <Nyr*Nxr; i++) {
-            M[i] = p * Ui[i] * Vi[i];
-        }
-    }
-    return M;
-}
-
