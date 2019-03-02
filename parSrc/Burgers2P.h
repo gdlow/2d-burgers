@@ -48,5 +48,9 @@ private:
     double* downVel;
     double* leftVel;
     double* rightVel;
+    double* myUpVel;
+    double* myDownVel;
+    double* myLeftVel;
+    double* myRightVel;
 };
 #endif //CLASS_BURGERS2P

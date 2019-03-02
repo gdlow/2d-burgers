@@ -42,6 +42,10 @@ Burgers2P::Burgers2P(Model &m) {
     downVel = new double[Nxr];
     leftVel = new double[Nyr];
     rightVel = new double[Nyr];
+    myUpVel = new double[Nxr];
+    myDownVel = new double[Nxr];
+    myLeftVel = new double[Nyr];
+    myRightVel = new double[Nyr];
 }
 
 /**
@@ -61,6 +65,10 @@ Burgers2P::~Burgers2P() {
     delete[] downVel;
     delete[] leftVel;
     delete[] rightVel;
+    delete[] myUpVel;
+    delete[] myDownVel;
+    delete[] myLeftVel;
+    delete[] myRightVel;
 
     /// Delete matrix coefficients
     delete[] dVel_dx_2_coeffs;
@@ -310,8 +318,6 @@ void Burgers2P::CopyAndDelete(double* NextU, double* NextV) {
     /// Delete current U and V pointers
     delete[] U;
     delete[] V;
-    U = nullptr;
-    V = nullptr;
 
     /// Set U and V to pointers to NextU and NextV
     U = NextU;
@@ -359,12 +365,6 @@ void Burgers2P::SetCaches(double* Vel, MPI_Request* reqs) {
     MPI_Comm vu = model->GetComm();
     int flag;
 
-    /// Allocate memory into Vel for local bounds
-    double* myUpVel = new double[Nxr];
-    double* myDownVel = new double[Nxr];
-    double* myLeftVel = new double[Nyr];
-    double* myRightVel = new double[Nyr];
-
     /// Get Vel bounds for this sub-matrix
     F77NAME(dcopy)(Nxr, Vel, Nyr, myUpVel, 1);
     F77NAME(dcopy)(Nxr, &(Vel[Nyr-1]), Nyr, myDownVel, 1);
@@ -388,11 +388,6 @@ void Burgers2P::SetCaches(double* Vel, MPI_Request* reqs) {
     /* Send left boundary to left and receive into right boundary */
     MPI_Isend(myLeftVel, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[6]);
     MPI_Irecv(rightVel, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[7]);
-
-    delete[] myUpVel;
-    delete[] myDownVel;
-    delete[] myLeftVel;
-    delete[] myRightVel;
 }
 
 /**

@@ -63,42 +63,6 @@ void printDebug(double* A, int Nyr, int Nxr, char c) {
     delete[] res;
 }
 
-/**
- * @brief Generates a symmetrical, square matrix for getting matrix coefficients
- * @brief Stored in column-major format
- * @param alpha prefactor along the leading diagonal
- * @param beta prefactor along the banded rows above and below
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param M pre-allocated matrix to be filled in symmetrically
- * */
-void GenSymm(double alpha, double beta, int Nyr, int Nxr, double* M) {
-    for (int i = 0; i < Nxr; i++) {
-        if (i>0) M[i*Nyr+(i-1)] = beta;
-        M[i*Nyr+i] = alpha;
-        if (i<Nxr-1) M[i*Nyr+(i+1)] = beta;
-    }
-}
-
-/**
- * @brief Generates a symmetrical, square matrix for getting matrix coefficients
- * @brief Stored in column-major format
- * @param alpha prefactor along the leading diagonal
- * @param beta prefactor along the banded row either above OR below
- * @param Nyr Nyr
- * @param Nxr Nxr
- * @param UPPER specifies whether the matrix is upper triangular
- * @param M pre-allocated matrix to be filled in symmetrically
- * */
-void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M) {
-   for (int i = 0; i < Nxr; i++) {
-        if (UPPER && i>0) M[i*Nyr+(i-1)] = beta;
-        M[i*Nyr+i] = alpha;
-        if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
-    }
-}
-
-
 void GenSymmBanded(double alpha, double beta, int N, double* M) {
     /// M should be of size (N*N)
     /// IMPORTANT: This fills it in column-major format!
