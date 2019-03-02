@@ -27,6 +27,10 @@ Burgers2P::Burgers2P(Model &m) {
     U = new double[NyrNxr];
     V = new double[NyrNxr];
 
+    /// Term arrays
+    dVel_2 = new double[NyrNxr];
+    dVel = new double[NyrNxr];
+
     /// Matrix coefficients
     dVel_dx_2_coeffs = new double[Nxr*Nxr];
     dVel_dy_2_coeffs = new double[Nyr*Nyr];
@@ -47,6 +51,10 @@ Burgers2P::~Burgers2P() {
     /// Delete U and V
     delete[] U;
     delete[] V;
+
+    /// Delete term arrays
+    delete[] dVel_2;
+    delete[] dVel;
 
     /// Delete Caches
     delete[] upVel;
@@ -238,25 +246,20 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
 
     /// Generate term arrays
     double* NextVel = new double[NyrNxr];
-    double* dVel_2 = new double[NyrNxr];
-    double* dVel_dx = new double[NyrNxr];
-    double* dVel_dy = new double[NyrNxr];
 
-    /// Compute second derivatives
+    /// Compute first & second derivatives
+    // x
     for (int i = 0; i < Nyr; i++) {
         F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
+        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
     }
+    // y
     for (int i = 0; i < NyrNxr; i += Nyr) {
         F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
+        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
     }
 
-    /// Compute first derivatives
-    F77NAME(dcopy)(NyrNxr, Vel, 1, dVel_dx, 1);
-    F77NAME(dcopy)(NyrNxr, Vel, 1, dVel_dy, 1);
-    F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
-    F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
-
-    UpdateBoundsLinear(dVel_2, dVel_2, dVel_dx, dVel_dy, reqs, stats);
+    UpdateBoundsLinear(dVel_2, dVel_2, dVel, dVel, reqs, stats);
 
     /// Matrix addition through all terms
     if (SELECT_U) {
@@ -270,7 +273,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
             if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
-            NextVel[i] = dVel_2[i] - dVel_dx[i] - dVel_dy[i] -
+            NextVel[i] = dVel_2[i] - dVel[i] -
                          (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
@@ -287,16 +290,13 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
             if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i/Nyr] * Vel[i];
 
-            NextVel[i] = dVel_2[i] - dVel_dx[i] - dVel_dy[i] -
+            NextVel[i] = dVel_2[i] - dVel[i] -
                     (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
         }
     }
     /// Delete term array pointers
-    delete[] dVel_2;
-    delete[] dVel_dx;
-    delete[] dVel_dy;
     delete[] reqs;
     delete[] stats;
 
@@ -336,8 +336,8 @@ void Burgers2P::SetMatrixCoefficients() {
     /// Set coefficients (alpha along the LD)
     GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
     GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
-    GenTrmm(alpha_dx_1, beta_dx_1, Nxr, Nxr, true, dVel_dx_coeffs);
-    GenTrmm(alpha_dy_1, beta_dy_1, Nyr, Nyr, false, dVel_dy_coeffs);
+    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, false, dVel_dx_coeffs);
+    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, false, dVel_dy_coeffs);
 }
 
 /**

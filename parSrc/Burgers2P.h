@@ -39,6 +39,10 @@ private:
     double* dVel_dy_coeffs;
     double E;
 
+    /// Term arrays
+    double* dVel_2;
+    double* dVel;
+
     /// Caches for partitioning matrix
     double* upVel;
     double* downVel;
