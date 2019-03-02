@@ -238,17 +238,16 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
 
     /// Generate term arrays
     double* NextVel = new double[NyrNxr];
-    double* dVel_dx_2 = new double[NyrNxr];
-    // double* dVel_dy_2 = new double[NyrNxr];
+    double* dVel_2 = new double[NyrNxr];
     double* dVel_dx = new double[NyrNxr];
     double* dVel_dy = new double[NyrNxr];
 
     /// Compute second derivatives
     for (int i = 0; i < Nyr; i++) {
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_dx_2[i]), Nyr);
+        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
     }
     for (int i = 0; i < NyrNxr; i += Nyr) {
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_dx_2[i]), 1);
+        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
     }
 
     /// Compute first derivatives
@@ -257,7 +256,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
-    UpdateBoundsLinear(dVel_dx_2, dVel_dx_2, dVel_dx, dVel_dy, reqs, stats);
+    UpdateBoundsLinear(dVel_2, dVel_2, dVel_dx, dVel_dy, reqs, stats);
 
     /// Matrix addition through all terms
     if (SELECT_U) {
@@ -271,7 +270,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
             if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
-            NextVel[i] = dVel_dx_2[i] - dVel_dx[i] - dVel_dy[i] -
+            NextVel[i] = dVel_2[i] - dVel_dx[i] - dVel_dy[i] -
                          (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
@@ -288,15 +287,14 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
             if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i/Nyr] * Vel[i];
 
-            NextVel[i] = dVel_dx_2[i] - dVel_dx[i] - dVel_dy[i] -
+            NextVel[i] = dVel_2[i] - dVel_dx[i] - dVel_dy[i] -
                     (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
         }
     }
     /// Delete term array pointers
-    delete[] dVel_dx_2;
-    // delete[] dVel_dy_2;
+    delete[] dVel_2;
     delete[] dVel_dx;
     delete[] dVel_dy;
     delete[] reqs;
@@ -369,14 +367,10 @@ void Burgers2P::SetCaches(double* Vel, MPI_Request* reqs) {
     double* myRightVel = new double[Nyr];
 
     /// Get Vel bounds for this sub-matrix
-    for (int i = 0; i < Nxr; i++) {
-        myUpVel[i] = Vel[i*Nyr];
-        myDownVel[i] = Vel[i*Nyr+(Nyr-1)];
-    }
-    for (int j = 0; j < Nyr; j++) {
-        myLeftVel[j] = Vel[j];
-        myRightVel[j] = Vel[(Nxr-1)*Nyr+j];
-    }
+    F77NAME(dcopy)(Nxr, Vel, Nyr, myUpVel, 1);
+    F77NAME(dcopy)(Nxr, &(Vel[Nyr-1]), Nyr, myDownVel, 1);
+    F77NAME(dcopy)(Nyr, Vel, 1, myLeftVel, 1);
+    F77NAME(dcopy)(Nyr, &(Vel[(Nxr-1)*Nyr]), 1, myRightVel, 1);
 
     /// Exchange up/down
     flag = 0;
@@ -413,11 +407,10 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double*
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
-    double dx = model->GetDx();
-    double dy = model->GetDy();
-    double ax = model->GetAx();
-    double ay = model->GetAy();
-    double c = model->GetC();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dx_1 = model->GetBetaDx_1();
+    double beta_dy_2 = model->GetBetaDy_2();
+    double beta_dy_1 = model->GetBetaDy_1();
 
     /// Get ranks
     int up = model->GetUp();
@@ -433,22 +426,22 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double*
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
         if (left >= 0) {
-            dVel_dx_2[j] += c/pow(dx,2.0)*leftVel[j];
-            dVel_dx[j] -= ax/dx*leftVel[j];
+            dVel_dx_2[j] += beta_dx_2*leftVel[j];
+            dVel_dx[j] += beta_dx_1*leftVel[j];
         }
         if (right >= 0) {
-            dVel_dx_2[(Nxr-1)*Nyr+j] += c/pow(dx,2.0)*rightVel[j];
+            dVel_dx_2[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
         }
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
         if (up >= 0) {
-            dVel_dy_2[i*Nyr] += c/pow(dy,2.0)*upVel[i];
-            dVel_dy[i*Nyr] -= ay/dy*upVel[i];
+            dVel_dy_2[i*Nyr] += beta_dy_2*upVel[i];
+            dVel_dy[i*Nyr] += beta_dy_1*upVel[i];
         }
         if (down >= 0) {
-            dVel_dy_2[i*Nyr+(Nyr-1)] += c/pow(dy,2.0)*downVel[i];
+            dVel_dy_2[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
         }
     }
 }
