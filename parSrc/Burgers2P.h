@@ -24,9 +24,9 @@ private:
     double CalculateEnergyState(double* Ui, double* Vi);
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetMatrixCoefficients();
-    void SetCaches(double* Vel, MPI_Request* reqs);
+    void SetCaches(double* Vel);
     void AssembleMatrix(double* Vel, double** M);
-    void UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double* dVel_dx, double* dVel_dy, MPI_Request* reqs, MPI_Status* stats);
+    void UpdateBoundsLinear(double* dVel_2, double* dVel);
     void CopyAndDelete(double* NextU, double* NextV);
 
     /// Burger parameters
@@ -52,5 +52,9 @@ private:
     double* myDownVel;
     double* myLeftVel;
     double* myRightVel;
+
+    /// MPI Requests and Statuses
+    MPI_Request* reqs;
+    MPI_Status* stats;
 };
 #endif //CLASS_BURGERS2P

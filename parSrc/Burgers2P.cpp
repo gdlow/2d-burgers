@@ -250,7 +250,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     MPI_Status* stats = new MPI_Status[8];
 
     /// Set caches for Vel (Non-blocking)
-    SetCaches(Vel, reqs);
+    SetCaches(Vel);
 
     /// Generate NextVel
     double* NextVel = new double[NyrNxr];
@@ -267,7 +267,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
     }
 
-    UpdateBoundsLinear(dVel_2, dVel_2, dVel, dVel, reqs, stats);
+    UpdateBoundsLinear(dVel_2, dVel);
 
     /// Matrix addition through all terms
     if (SELECT_U) {
@@ -350,7 +350,11 @@ void Burgers2P::SetMatrixCoefficients() {
  * @brief Private helper function that sets the boundary condition velocities
  * @param Vel pointer to U[k] or V[k]
  * */
-void Burgers2P::SetCaches(double* Vel, MPI_Request* reqs) {
+void Burgers2P::SetCaches(double* Vel) {
+    /// Generate new MPI request and stats
+    reqs = new MPI_Request[8];
+    stats = new MPI_Status[8];
+
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -397,7 +401,7 @@ void Burgers2P::SetCaches(double* Vel, MPI_Request* reqs) {
  * @param dVel_dx pointer to dVel_dx in NextVelocityState()
  * @param dVel_dy pointer to dVel_dy in NextVelocityState()
  * */
-void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double* dVel_dx, double* dVel_dy, MPI_Request* reqs, MPI_Status* stats) {
+void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -418,24 +422,28 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double*
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
         if (left >= 0) {
-            dVel_dx_2[j] += beta_dx_2*leftVel[j];
-            dVel_dx[j] += beta_dx_1*leftVel[j];
+            dVel_2[j] += beta_dx_2*leftVel[j];
+            dVel[j] += beta_dx_1*leftVel[j];
         }
         if (right >= 0) {
-            dVel_dx_2[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+            dVel_2[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
         }
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
         if (up >= 0) {
-            dVel_dy_2[i*Nyr] += beta_dy_2*upVel[i];
-            dVel_dy[i*Nyr] += beta_dy_1*upVel[i];
+            dVel_2[i*Nyr] += beta_dy_2*upVel[i];
+            dVel[i*Nyr] += beta_dy_1*upVel[i];
         }
         if (down >= 0) {
-            dVel_dy_2[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+            dVel_2[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
         }
     }
+
+    /// Deallocate memory of MPI requests and stats
+    delete[] stats;
+    delete[] reqs;
 }
 
 /**
