@@ -4,6 +4,7 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers.h"
+#include <iostream>
 
 using namespace std;
 
@@ -107,6 +108,7 @@ void Burgers::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
+        cout << "step: " << k << "\n";
     }
 }
 
