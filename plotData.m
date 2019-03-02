@@ -1,13 +1,13 @@
 clear; clc; close all;
 
 %% input params
-Nx = 2001;
-Ny = 2001;
+Nx = 101;
+Ny = 101;
 Lx = 10;
 Ly = 10;
 T = 1;
 %% read data
-filePath = 'data_report_4001.txt';
+filePath = 'data.txt';
 fileID = fopen(filePath,'r');
 fgets(fileID);
 U = zeros(Ny,Nx);
