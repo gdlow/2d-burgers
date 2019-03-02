@@ -252,7 +252,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel, reqs);
 
-    /// Generate term arrays
+    /// Generate NextVel
     double* NextVel = new double[NyrNxr];
 
     /// Compute first & second derivatives
@@ -414,8 +414,6 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_dx_2, double* dVel_dy_2, double*
 
     /// MPI wait for all comms to finish
     MPI_Waitall(8, reqs, stats);
-
-    /// Modify boundaries on this sub-matrix
 
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
