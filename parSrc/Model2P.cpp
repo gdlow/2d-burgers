@@ -1,5 +1,6 @@
 #include <iostream>
 #include <mpi.h>
+#include <cmath>
 #include "Model2P.h"
 #include "ParseException.h"
 
@@ -106,6 +107,18 @@ void Model::SetNumerics() {
     // x0 and y0 represent the top LHS of the matrix:
     x0 = -Lx/2.0;
     y0 = Ly/2.0;
+    // b/dx and b/dy saves computation time in the future
+    bdx = b/dx;
+    bdy = b/dy;
+    // alpha and beta used for BLAS routines
+    alpha_dx_2 = (-2.0*c)/pow(dx,2.0);
+    alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
+    beta_dx_2 = c/pow(dx,2.0);
+    beta_dy_2 = c/pow(dy,2.0);
+    alpha_dx_1 = ax/dx;
+    alpha_dy_1 = ay/dy;
+    beta_dx_1 = -ax/dx;
+    beta_dy_1 = -ay/dy;
 }
 
 /**
@@ -220,28 +233,32 @@ void Model::SetNeighbours() {
 /**
  * @brief Get local Nxr
  * */
-int Model::GetLocNxr() {
+int Model::GetLocNxr() const {
     return loc_Nxr[loc_coord[1]];
 }
 
 /**
  * @brief Get local Nyr
  * */
-int Model::GetLocNyr() {
+int Model::GetLocNyr() const {
     return loc_Nyr[loc_coord[0]];
 }
 
 /**
  * @brief Get local x displacement from global (0,0)
  * */
-int Model::GetDisplX() {
+int Model::GetDisplX() const {
     return displs_x[loc_coord[1]];
 }
 
 /**
  * @brief Get local y displacement from global (0,0)
  * */
-int Model::GetDisplY() {
+int Model::GetDisplY() const {
     return displs_y[loc_coord[0]];
+}
+
+int Model::GetLocNyrNxr() const {
+    return GetLocNxr() * GetLocNyr();
 }
 

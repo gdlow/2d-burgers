@@ -21,10 +21,11 @@ Burgers2P::Burgers2P(Model &m) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
+    int NyrNxr = model->GetLocNyrNxr();
 
     /// Allocate memory to instance variables
-    U = new double[Nyr*Nxr];
-    V = new double[Nyr*Nxr];
+    U = new double[NyrNxr];
+    V = new double[NyrNxr];
 
     /// Matrix coefficients
     dVel_dx_2_coeffs = new double[Nxr*Nxr]();
@@ -187,15 +188,14 @@ void Burgers2P::SetEnergy() {
  * */
 double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
     /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
+    int NyrNxr = model->GetLocNyrNxr();
     double dx = model->GetDx();
     double dy = model->GetDy();
     MPI_Comm vu = model->GetComm();
 
     /// Blas calls to compute dot products
-    double loc_ddotU = F77NAME(ddot)(Nyr*Nxr, Ui, 1, Ui, 1);
-    double loc_ddotV = F77NAME(ddot)(Nyr*Nxr, Vi, 1, Vi, 1);
+    double loc_ddotU = F77NAME(ddot)(NyrNxr, Ui, 1, Ui, 1);
+    double loc_ddotV = F77NAME(ddot)(NyrNxr, Vi, 1, Vi, 1);
 
     /// Compute local energy state
     double NextLocalEnergyState = 0.5 * (loc_ddotU + loc_ddotV) * dx*dy;
@@ -216,10 +216,10 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
+    int NyrNxr = model->GetLocNyrNxr();
     double dt = model->GetDt();
-    double dx = model->GetDx();
-    double dy = model->GetDy();
-    double b = model->GetB();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
 
     /// Get ranks
     int up = model->GetUp();
@@ -237,19 +237,19 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     SetCaches(Vel, reqs);
 
     /// Generate term arrays
-    double* NextVel = new double[Nyr*Nxr];
-    double* dVel_dx_2 = new double[Nyr*Nxr];
-    double* dVel_dy_2 = new double[Nyr*Nxr];
-    double* dVel_dx = new double[Nyr*Nxr];
-    double* dVel_dy = new double[Nyr*Nxr];
+    double* NextVel = new double[NyrNxr];
+    double* dVel_dx_2 = new double[NyrNxr];
+    double* dVel_dy_2 = new double[NyrNxr];
+    double* dVel_dx = new double[NyrNxr];
+    double* dVel_dy = new double[NyrNxr];
 
     /// Compute second derivatives
     F77NAME(dsymm)('R', 'U', Nyr, Nxr, 1.0, dVel_dx_2_coeffs, Nxr, Vel, Nyr, 0.0, dVel_dx_2, Nyr);
     F77NAME(dsymm)('L', 'U', Nyr, Nxr, 1.0, dVel_dy_2_coeffs, Nyr, Vel, Nyr, 0.0, dVel_dy_2, Nyr);
 
     /// Compute first derivatives
-    F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dx, 1);
-    F77NAME(dcopy)(Nyr*Nxr, Vel, 1, dVel_dy, 1);
+    F77NAME(dcopy)(NyrNxr, Vel, 1, dVel_dx, 1);
+    F77NAME(dcopy)(NyrNxr, Vel, 1, dVel_dy, 1);
     F77NAME(dtrmm)('R', 'U', 'N', 'N', Nyr, Nxr, 1.0, dVel_dx_coeffs, Nxr, dVel_dx, Nyr);
     F77NAME(dtrmm)('L', 'L', 'N', 'N', Nyr, Nxr, 1.0, dVel_dy_coeffs, Nyr, dVel_dy, Nyr);
 
@@ -257,15 +257,15 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
 
     /// Matrix addition through all terms
     if (SELECT_U) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            double Vel_Vel = b/dx * Vel[i] * Vel[i];
-            double Vel_Other = b/dy * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : b/dx * Vel[i-Nyr] * Vel[i];
-            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : b/dy * Vel[i-1] * Other[i];
+        for (int i = 0; i < NyrNxr; i++) {
+            double Vel_Vel = bdx * Vel[i] * Vel[i];
+            double Vel_Other = bdy * Vel[i] * Other[i];
+            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
+            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
 
             // Update non-linear BC
-            if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = b/dx * leftVel[i] * Vel[i];
-            if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = b/dy * upVel[i/Nyr] * Other[i];
+            if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
+            if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
             NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
                          (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
@@ -274,15 +274,15 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         }
     }
     else {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            double Vel_Vel = b/dy * Vel[i] * Vel[i];
-            double Vel_Other = b/dx * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : b/dy * Vel[i-1] * Vel[i];
-            double Vel_Other_Minus_1 = (i < Nyr)? 0 : b/dx * Vel[i-Nyr] * Other[i];
+        for (int i = 0; i < NyrNxr; i++) {
+            double Vel_Vel = bdy * Vel[i] * Vel[i];
+            double Vel_Other = bdx * Vel[i] * Other[i];
+            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
+            double Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
 
             // Update non-linear BC
-            if (i < Nyr && left >= 0) Vel_Other_Minus_1 = b/dx * leftVel[i] * Other[i];
-            if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = b/dy * upVel[i/Nyr] * Vel[i];
+            if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
+            if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i/Nyr] * Vel[i];
 
             NextVel[i] = dVel_dx_2[i] + dVel_dy_2[i] - dVel_dx[i] - dVel_dy[i] -
                     (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
@@ -322,17 +322,20 @@ void Burgers2P::SetMatrixCoefficients() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
-    double dx = model->GetDx();
-    double dy = model->GetDy();
-    double ax = model->GetAx();
-    double ay = model->GetAy();
-    double c = model->GetC();
+    double alpha_dx_2 = model->GetAlphaDx_2();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double alpha_dy_2 = model->GetAlphaDy_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+    double alpha_dx_1 = model->GetAlphaDx_1();
+    double beta_dx_1 = model->GetBetaDx_1();
+    double alpha_dy_1 = model->GetAlphaDy_1();
+    double beta_dy_1 = model->GetBetaDy_1();
 
-    /// Set coefficients
-    GenSymm((-2.0*c)/pow(dx,2.0), c/pow(dx,2.0), Nxr, Nxr, dVel_dx_2_coeffs);
-    GenSymm((-2.0*c)/pow(dy,2.0), c/pow(dy,2.0), Nyr, Nyr, dVel_dy_2_coeffs);
-    GenTrmm(ax/dx, -ax/dx, Nxr, Nxr, true, dVel_dx_coeffs);
-    GenTrmm(ay/dy, -ay/dy, Nyr, Nyr, false, dVel_dy_coeffs);
+    /// Set coefficients (alpha along the LD)
+    GenSymm(alpha_dx_2, beta_dx_2, Nxr, Nxr, dVel_dx_2_coeffs);
+    GenSymm(alpha_dy_2, beta_dy_2, Nyr, Nyr, dVel_dy_2_coeffs);
+    GenTrmm(alpha_dx_1, beta_dx_1, Nxr, Nxr, true, dVel_dx_coeffs);
+    GenTrmm(alpha_dy_1, beta_dy_1, Nyr, Nyr, false, dVel_dy_coeffs);
 }
 
 /**
