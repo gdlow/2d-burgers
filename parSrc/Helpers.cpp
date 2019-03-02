@@ -97,3 +97,47 @@ void GenTrmm(double alpha, double beta, int Nyr, int Nxr, bool UPPER, double* M)
         if (!UPPER && i<Nxr-1) M[i*Nyr+i+1] = beta;
     }
 }
+
+
+void GenSymmBanded(double alpha, double beta, int N, double* M) {
+    /// M should be of size (N*N)
+    /// IMPORTANT: This fills it in column-major format!
+
+    /// Generate first row <=> upper diagonal
+    for (int i = 1; i < N; i++) {
+        M[i*N] = beta;
+    }
+    /// Generate second row <=> leading diagonal
+    for (int i = 0; i < N; i++) {
+        M[i*N+1] = alpha;
+    }
+    /// Generate third row <=> lower diagonal
+    for (int i = 0; i < N-1; i++) {
+        M[i*N+2] = beta;
+    }
+}
+
+void GenTrmmBanded(double alpha, double beta, int N, bool IS_UPPER, double* M) {
+    /// M should be of size (2*N)
+
+    if (IS_UPPER) {
+        /// Generate first row <=> upper diagonal
+        for (int i = 1; i < N; i++) {
+            M[i] = beta;
+        }
+        /// Generate second row <=> leading diagonal
+        for (int i = N; i < 2*N; i++) {
+            M[i] = alpha;
+        }
+    }
+    else {
+        /// Generate first row <=> leading diagonal
+        for (int i = 0; i < N; i++) {
+            M[i] = alpha;
+        }
+        /// Generate second row  <=> lower diagonal
+        for (int i = N; i < 2*N-1; i++) {
+            M[i] = beta;
+        }
+    }
+}
