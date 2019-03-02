@@ -123,7 +123,12 @@ void Burgers2P::SetIntegratedVelocity() {
     for (int k = 0; k < Nt-1; k++) {
         double* NextU = NextVelocityState(U, V, true);
         double* NextV = NextVelocityState(U, V, false);
-        CopyAndDelete(NextU, NextV);
+
+        /// Delete current pointer and point to NextVel
+        delete[] U;
+        delete[] V;
+        U = NextU;
+        V = NextV;
         if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
@@ -304,18 +309,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     return NextVel;
 }
 
-/**
- * @brief Copies next state velocity into previous state, and deletes the temporary pointer
- * */
-void Burgers2P::CopyAndDelete(double* NextU, double* NextV) {
-    /// Delete current U and V pointers
-    delete[] U;
-    delete[] V;
-
-    /// Set U and V to pointers to NextU and NextV
-    U = NextU;
-    V = NextV;
-}
 /**
  * @brief Private helper function that sets matrix coefficients for differentials
  * */

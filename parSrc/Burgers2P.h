@@ -27,7 +27,6 @@ private:
     void SetCaches(double* Vel);
     void AssembleMatrix(double* Vel, double** M);
     void UpdateBoundsLinear(double* dVel_2, double* dVel);
-    void CopyAndDelete(double* NextU, double* NextV);
 
     /// Burger parameters
     Model* model;
