@@ -26,7 +26,6 @@ private:
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
     void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
-    double ComputeR(double x, double y);
 
     /// Burger parameters
     Model* model;

@@ -13,7 +13,7 @@ using namespace std;
  * @brief Allocates memory to all other instance variables
  * @param &m reference to Model instance
  * */
-Burgers2P::Burgers2P(Model &m) {
+Burgers2P::Burgers2P(Model &m) { // TODO: use explicit constructor
     /// Set model class pointer as instance variable
     model = &m;
 
@@ -100,7 +100,7 @@ void Burgers2P::SetInitialVelocity() {
         for (int j = 0; j < Nyr; j++) {
             double x = loc_x0 + i*dx;
             double y = loc_y0 - j*dy;
-            double r = ComputeR(x, y);
+            double r = pow(x*x+y*y, 0.5);
             U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
             V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
@@ -231,7 +231,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
+double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) { // TODO: Consider static inline
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -245,23 +245,25 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     int left = model->GetLeft();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? Ui : Vi;
+    double* Vel = (SELECT_U) ? Ui : Vi; // TODO: DO MORE OF THIS PATTERN.
     double* Other = (SELECT_U)? Vi : Ui;
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
 
     /// Generate NextVel
-    double* NextVel = new double[NyrNxr];
+    double* NextVel = new double[NyrNxr]; // TODO: Recycle NextVel object and point U or V to it afterwards.
+
+    int i; // define runner
 
     /// Compute first & second derivatives
     // x
-    for (int i = 0; i < Nyr; i++) {
+    for (i = 0; i < Nyr; i++) {
         F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
         F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
     }
     // y
-    for (int i = 0; i < NyrNxr; i += Nyr) {
+    for (i = 0; i < NyrNxr; i += Nyr) {
         F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
         F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
     }
@@ -269,17 +271,19 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     UpdateBoundsLinear(dVel_2, dVel);
 
     /// Matrix addition through all terms
+    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
     if (SELECT_U) {
-        for (int i = 0; i < NyrNxr; i++) {
-            double Vel_Vel = bdx * Vel[i] * Vel[i];
-            double Vel_Other = bdy * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
-            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
+        for (i = 0; i < NyrNxr; i++) { // Avoid cache miss by declaring data-types above instead of on every loop.
+            Vel_Vel = bdx * Vel[i] * Vel[i];
+            Vel_Other = bdy * Vel[i] * Other[i];
+            Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
+            Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
 
             // Update non-linear BC
             if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
             if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
+            // TODO: Are dasums faster?
             NextVel[i] = dVel_2[i] - dVel[i] -
                          (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
@@ -287,11 +291,11 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         }
     }
     else {
-        for (int i = 0; i < NyrNxr; i++) {
-            double Vel_Vel = bdy * Vel[i] * Vel[i];
-            double Vel_Other = bdx * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
-            double Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
+        for (i = 0; i < NyrNxr; i++) { // Allocate iterators outside loop
+            Vel_Vel = bdy * Vel[i] * Vel[i];
+            Vel_Other = bdx * Vel[i] * Other[i];
+            Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
+            Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
 
             // Update non-linear BC
             if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
@@ -337,7 +341,7 @@ void Burgers2P::SetMatrixCoefficients() {
  * */
 void Burgers2P::SetCaches(double* Vel) {
     /// Generate new MPI request and stats
-    reqs = new MPI_Request[8];
+    reqs = new MPI_Request[8]; // TODO: Can I recycle Requests and Statuses?
     stats = new MPI_Status[8];
 
     /// Get model parameters
@@ -385,6 +389,9 @@ void Burgers2P::SetCaches(double* Vel) {
  * @param dVel pointer to dVel in NextVelocityState()
  * */
 void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
+
+    double* dVel_2_temp = dVel_2;
+    double* dVel_temp = dVel; // Avoid load-hit-store
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -402,25 +409,32 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
     /// MPI wait for all comms to finish
     MPI_Waitall(8, reqs, stats);
 
+    int i,j;
+
     /// Fix left and right boundaries
-    for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) {
-            dVel_2[j] += beta_dx_2*leftVel[j];
-            dVel[j] += beta_dx_1*leftVel[j];
-        }
-        if (right >= 0) {
-            dVel_2[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+    if (left >= 0) {
+        for (j = 0; j < Nyr; j++) {
+            dVel_2_temp[j] += beta_dx_2*leftVel[j];
+            dVel_temp[j] += beta_dx_1*leftVel[j];
         }
     }
 
-    /// Fix up and down boundaries
-    for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) {
-            dVel_2[i*Nyr] += beta_dy_2*upVel[i];
-            dVel[i*Nyr] += beta_dy_1*upVel[i];
+    if (right >= 0) {
+        for (j = 0; j < Nyr; j++) {
+            dVel_2_temp[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
         }
-        if (down >= 0) {
-            dVel_2[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+    }
+
+    if (up >= 0) {
+        for (i = 0; i < Nxr; i++) {
+            dVel_2_temp[i*Nyr] += beta_dy_2*upVel[i];
+            dVel_temp[i*Nyr] += beta_dy_1*upVel[i];
+        }
+    }
+
+    if (down >= 0) {
+        for (i = 0; i < Nxr; i++) {
+            dVel_2_temp[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
         }
     }
 
@@ -474,14 +488,4 @@ void Burgers2P::AssembleMatrix(double* Vel, double** M) {
     }
 
     delete[] globalVel;
-}
-
-/**
- * @brief Private helper function computing R for SetInitialVelocity()
- * @param x real x distance to origin
- * @param y real y distance to origin
- * */
-double Burgers2P::ComputeR(double x, double y) {
-    double r = pow(x*x+y*y, 0.5);
-    return r;
 }
