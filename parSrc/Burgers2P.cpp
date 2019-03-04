@@ -45,6 +45,9 @@ Burgers2P::Burgers2P(Model &m) { // TODO: use explicit constructor
     myDownVel = new double[Nxr];
     myLeftVel = new double[Nyr];
     myRightVel = new double[Nyr];
+
+    reqs = new MPI_Request[8]; // TODO: Can I recycle Requests and Statuses?
+    stats = new MPI_Status[8];
 }
 
 /**
@@ -76,6 +79,9 @@ Burgers2P::~Burgers2P() {
     delete[] dVel_dy_coeffs;
 
     /// model is not dynamically alloc
+
+    delete[] reqs;
+    delete[] stats;
 }
 
 /**
@@ -119,7 +125,8 @@ void Burgers2P::SetIntegratedVelocity() {
 
 
     /// Compute U, V for every step k
-    for (int k = 0; k < Nt-1; k++) {
+    int k;
+    for (k = 0; k < Nt-1; k++) {
         double* NextU = NextVelocityState(U, V, true);
         double* NextV = NextVelocityState(U, V, false);
 
@@ -231,7 +238,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) { // TODO: Consider static inline
+inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) { // TODO: Consider static inline
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -339,10 +346,8 @@ void Burgers2P::SetMatrixCoefficients() {
  * @brief Uses non-blocking MPI send and receives to exchange boundaries
  * @param Vel pointer to U or V
  * */
-void Burgers2P::SetCaches(double* Vel) {
+inline void Burgers2P::SetCaches(double* Vel) {
     /// Generate new MPI request and stats
-    reqs = new MPI_Request[8]; // TODO: Can I recycle Requests and Statuses?
-    stats = new MPI_Status[8];
 
     /// Get model parameters
     int Nyr = model->GetLocNyr();
@@ -388,7 +393,7 @@ void Burgers2P::SetCaches(double* Vel) {
  * @param dVel_2 pointer to dVel_2 in NextVelocityState()
  * @param dVel pointer to dVel in NextVelocityState()
  * */
-void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
+inline void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
 
     double* dVel_2_temp = dVel_2;
     double* dVel_temp = dVel; // Avoid load-hit-store
@@ -437,10 +442,6 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
             dVel_2_temp[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
         }
     }
-
-    /// Deallocate memory of MPI requests and stats
-    delete[] stats;
-    delete[] reqs;
 }
 
 /**
