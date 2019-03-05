@@ -9,7 +9,7 @@
  * */
 class Model {
 public:
-    Model(int argc, char* argv[]);
+    explicit Model(int argc, char* argv[]);
     ~Model();
 
     void PrintParameters();

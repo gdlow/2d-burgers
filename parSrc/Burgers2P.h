@@ -10,7 +10,7 @@
  * */
 class Burgers2P {
 public:
-    Burgers2P(Model &m);
+    explicit Burgers2P(Model &m);
     ~Burgers2P();
 
     void SetInitialVelocity();

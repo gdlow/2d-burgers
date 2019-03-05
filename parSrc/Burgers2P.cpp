@@ -5,6 +5,7 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers2P.h"
+#include <iostream>
 
 using namespace std;
 
@@ -13,7 +14,7 @@ using namespace std;
  * @brief Allocates memory to all other instance variables
  * @param &m reference to Model instance
  * */
-Burgers2P::Burgers2P(Model &m) { // TODO: use explicit constructor
+Burgers2P::Burgers2P(Model &m) {
     /// Set model class pointer as instance variable
     model = &m;
 
@@ -31,10 +32,10 @@ Burgers2P::Burgers2P(Model &m) { // TODO: use explicit constructor
     dVel = new double[NyrNxr];
 
     /// Matrix coefficients
-    dVel_dx_2_coeffs = new double[Nxr*Nxr];
-    dVel_dy_2_coeffs = new double[Nyr*Nyr];
-    dVel_dx_coeffs = new double[Nxr*Nxr];
-    dVel_dy_coeffs = new double[Nyr*Nyr];
+    dVel_dx_2_coeffs = new double[3*Nxr];
+    dVel_dy_2_coeffs = new double[3*Nyr];
+    dVel_dx_coeffs = new double[2*Nxr];
+    dVel_dy_coeffs = new double[2*Nyr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -46,7 +47,8 @@ Burgers2P::Burgers2P(Model &m) { // TODO: use explicit constructor
     myLeftVel = new double[Nyr];
     myRightVel = new double[Nyr];
 
-    reqs = new MPI_Request[8]; // TODO: Can I recycle Requests and Statuses?
+    /// Requests and Statuses
+    reqs = new MPI_Request[8];
     stats = new MPI_Status[8];
 }
 
@@ -78,10 +80,11 @@ Burgers2P::~Burgers2P() {
     delete[] dVel_dx_coeffs;
     delete[] dVel_dy_coeffs;
 
-    /// model is not dynamically alloc
-
+    /// Requests and Statuses
     delete[] reqs;
     delete[] stats;
+
+    /// model is not dynamically alloc
 }
 
 /**
@@ -135,6 +138,7 @@ void Burgers2P::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
+        if (model->GetRank() == 0) cout << "step: "<< k << "\n";
     }
 }
 
@@ -252,27 +256,27 @@ inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_
     int left = model->GetLeft();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? Ui : Vi; // TODO: DO MORE OF THIS PATTERN.
+    double* Vel = (SELECT_U) ? Ui : Vi;
     double* Other = (SELECT_U)? Vi : Ui;
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
 
     /// Generate NextVel
-    double* NextVel = new double[NyrNxr]; // TODO: Recycle NextVel object and point U or V to it afterwards.
+    double* NextVel = new double[NyrNxr];
 
     int i; // define runner
 
     /// Compute first & second derivatives
     // x
     for (i = 0; i < Nyr; i++) {
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
+        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, 3, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
+        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, 2, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
     }
     // y
     for (i = 0; i < NyrNxr; i += Nyr) {
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
+        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, 3, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
+        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, 2, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
     }
 
     UpdateBoundsLinear(dVel_2, dVel);
@@ -335,10 +339,10 @@ void Burgers2P::SetMatrixCoefficients() {
     double beta_dy_1 = model->GetBetaDy_1();
 
     /// Set coefficients (alpha along the LD)
-    GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
-    GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
-    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, dVel_dx_coeffs);
-    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, dVel_dy_coeffs);
+    GenSymmBanded(alpha_dx_2, beta_dx_2, 3, Nxr, dVel_dx_2_coeffs);
+    GenSymmBanded(alpha_dy_2, beta_dy_2, 3, Nyr, dVel_dy_2_coeffs);
+    GenTrmmBanded(alpha_dx_1, beta_dx_1, 2, Nxr, dVel_dx_coeffs);
+    GenTrmmBanded(alpha_dy_1, beta_dy_1, 2, Nyr, dVel_dy_coeffs);
 }
 
 /**

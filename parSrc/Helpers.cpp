@@ -45,18 +45,18 @@ void wrap(double* A, int Nyr, int Nxr, double** res) {
  * @param N number of rows/columns (should be a square matrix)
  * @param M pre-allocated with N*N memory
  * */
-void GenSymmBanded(double alpha, double beta, int N, double* M) {
+void GenSymmBanded(double alpha, double beta, int lda, int N, double* M) {
     /// Generate first row <=> upper diagonal
     for (int i = 1; i < N; i++) {
-        M[i*N] = beta;
+        M[i*lda] = beta;
     }
     /// Generate second row <=> leading diagonal
     for (int i = 0; i < N; i++) {
-        M[i*N+1] = alpha;
+        M[i*lda+1] = alpha;
     }
     /// Generate third row <=> lower diagonal
     for (int i = 0; i < N-1; i++) {
-        M[i*N+2] = beta;
+        M[i*lda+2] = beta;
     }
 }
 
@@ -67,13 +67,13 @@ void GenSymmBanded(double alpha, double beta, int N, double* M) {
  * @param N number of rows/columns (should be a square matrix)
  * @param M pre-allocated with N*N memory
  * */
-void GenTrmmBanded(double alpha, double beta, int N, double* M) {
+void GenTrmmBanded(double alpha, double beta, int lda, int N, double* M) {
     /// Generate first row <=> leading diagonal
     for (int i = 0; i < N; i++) {
-        M[i*N] = alpha;
+        M[i*lda] = alpha;
     }
     /// Generate second row  <=> lower diagonal
     for (int i = 0; i < N-1; i++) {
-        M[i*N+1] = beta;
+        M[i*lda+1] = beta;
     }
 }
