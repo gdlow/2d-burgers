@@ -418,33 +418,23 @@ inline void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
     /// MPI wait for all comms to finish
     MPI_Waitall(8, reqs, stats);
 
-    int i,j;
-
     /// Fix left and right boundaries
     if (left >= 0) {
-        for (j = 0; j < Nyr; j++) {
-            dVel_2_temp[j] += beta_dx_2*leftVel[j];
-            dVel_temp[j] += beta_dx_1*leftVel[j];
-        }
+        F77NAME(daxpy)(Nyr, beta_dx_2, leftVel, 1, dVel_2_temp, 1);
+        F77NAME(daxpy)(Nyr, beta_dx_1, leftVel, 1, dVel_temp, 1);
     }
 
     if (right >= 0) {
-        for (j = 0; j < Nyr; j++) {
-            dVel_2_temp[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-        }
+        F77NAME(daxpy)(Nyr, beta_dx_2, rightVel, 1, &(dVel_2_temp[(Nxr-1)*Nyr]), 1);
     }
 
     if (up >= 0) {
-        for (i = 0; i < Nxr; i++) {
-            dVel_2_temp[i*Nyr] += beta_dy_2*upVel[i];
-            dVel_temp[i*Nyr] += beta_dy_1*upVel[i];
-        }
+        F77NAME(daxpy)(Nyr, beta_dy_2, upVel, 1, dVel_2_temp, Nyr);
+        F77NAME(daxpy)(Nyr, beta_dy_1, upVel, 1, dVel_temp, Nyr);
     }
 
     if (down >= 0) {
-        for (i = 0; i < Nxr; i++) {
-            dVel_2_temp[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-        }
+        F77NAME(daxpy)(Nyr, beta_dy_2, downVel, 1, &(dVel_2_temp[Nyr-1]), Nyr);
     }
 }
 
