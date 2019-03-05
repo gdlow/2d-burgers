@@ -130,8 +130,8 @@ void Burgers2P::SetIntegratedVelocity() {
     /// Compute U, V for every step k
     int k;
     for (k = 0; k < Nt-1; k++) {
-        double* NextU = NextVelocityState(U, V, true);
-        double* NextV = NextVelocityState(U, V, false);
+        double* NextU = NextVelocityState(true);
+        double* NextV = NextVelocityState(false);
 
         /// Delete current pointer and point to NextVel
         delete[] U;
@@ -242,7 +242,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
+inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     // TODO: Try creating separate memory instances and doing a daxpy throughout
 
     /// Get model parameters
@@ -258,8 +258,8 @@ inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_
     int left = model->GetLeft();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? Ui : Vi;
-    double* Other = (SELECT_U)? Vi : Ui;
+    double* Vel = (SELECT_U) ? U : V;
+    double* Other = (SELECT_U)? V : U;
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);

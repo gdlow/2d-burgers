@@ -20,7 +20,7 @@ public:
     double GetE()     const { return E; }
 private:
     void SetMatrixCoefficients();
-    double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
+    double* NextVelocityState(bool U_OR_V);
     void SetCaches(double* Vel);
     void UpdateBoundsLinear(double* dVel_2, double* dVel);
     double CalculateEnergyState(double* Ui, double* Vi);
