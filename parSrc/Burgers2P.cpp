@@ -242,7 +242,9 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) { // TODO: Consider static inline
+inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
+    // TODO: Try creating separate memory instances and doing a daxpy throughout
+
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -294,7 +296,6 @@ inline double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_
             if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
             if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
-            // TODO: Are dasums faster?
             NextVel[i] = dVel_2[i] - dVel[i] -
                          (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
