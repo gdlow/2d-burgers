@@ -44,6 +44,8 @@ private:
     double* myLeftVel;
     double* myRightVel;
 
+    double* Vel_t;
+
     /// MPI Requests and Statuses
     MPI_Request* reqs;
     MPI_Status* stats;

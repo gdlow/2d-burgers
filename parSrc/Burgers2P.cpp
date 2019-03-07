@@ -26,6 +26,7 @@ Burgers2P::Burgers2P(Model &m) {
     /// Allocate memory to instance variables
     localVel.U = new double[NyrNxr];
     localVel.V = new double[NyrNxr];
+    Vel_t = new double[NyrNxr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -49,6 +50,7 @@ Burgers2P::~Burgers2P() {
     /// Delete U and V
     delete[] localVel.U;
     delete[] localVel.V;
+    delete[] Vel_t;
 
     /// Delete Caches
     delete[] upVel;
@@ -253,6 +255,10 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     double beta_dy_1 = model->GetBetaDy_1();
 
     // loop blocking + pre-fetching previous & next column from memory
+    for (int k = 0; k < Nxr; k++) {
+        F77NAME(dcopy)(Nyr,&(Vel[k*Nyr]),1,&(Vel_t[k]),Nxr);
+    }
+    
     const int blocksize = 4;
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
