@@ -1,6 +1,6 @@
 # Compilers and flags
 CXX = mpicxx
-CXXFLAGS = -std=c++11 -Wall -Ofast
+CXXFLAGS = -std=c++11 -Wall -Ofast -g -save-temps
 LDLIBS = -lblas
 
 # Serial variables

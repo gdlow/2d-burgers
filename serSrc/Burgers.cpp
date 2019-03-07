@@ -210,40 +210,58 @@ void Burgers::SetLinearTerms(double* Vel, double* NextVel) {
     double beta_dy_1 = model->GetBetaDy_1();
 
     // loop blocking + pre-fetching previous & next column from memory
-    const int blocksize = 4;
+    const int blocksize = 8;
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
-    for (int i = 0; i < Nxr; i++) {
-        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-        int start = i*Nyr;
-        for (int j = 0; j < Nyr; j+=blocksize) {
-            for (int k = j; k < Nyr && k < j + blocksize; k++) {
-                int curr = start + k;
-                // Update x
-                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
-                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
-                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
-                // Update y
-                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
-                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
-                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+    double* VelPtr = nullptr;
+    double* NextVelPtr = nullptr;
+    int i, j, i2, j2, ii2, jj2;
+    for (i = 0; i < Nxr; i+=blocksize) {
+        for (j = 0; j < Nyr; j+=blocksize) {
+            for (i2 = 0, ii2 = i+i2, VelPtr = &Vel[i*Nyr+j], NextVelPtr = &NextVel[i*Nyr+j]; ii2 < Nxr && i2 < blocksize; ++i2, ++ii2, VelPtr += Nyr, NextVelPtr+=Nyr) {
+                if (ii2 > 0) Vel_iMinus = &Vel[(ii2-1)*Nyr+j];
+                if (ii2 < Nxr-1) Vel_iPlus = &Vel[(ii2+1)*Nyr+j];
+                for (j2 = 0, jj2 = j+j2; jj2 < Nyr && j2 < blocksize; ++j2, ++jj2) {
+                    // Update x
+                    NextVelPtr[j2] = (ii2 > 0) ? alpha_dx_1 * VelPtr[j2] + beta_dx_1 * Vel_iMinus[j2] :alpha_dx_1 * VelPtr[j2];
+                    NextVelPtr[j2] = (ii2 > 0) ? NextVelPtr[j2] + alpha_dx_2 * VelPtr[j2] + beta_dx_2 * Vel_iMinus[j2] :NextVelPtr[j2] + alpha_dx_2 * VelPtr[j2];
+                    NextVelPtr[j2] = (ii2 < Nxr-1) ? NextVelPtr[j2] + beta_dx_2 * Vel_iPlus[j2] : NextVelPtr[j2];
+                    // Update y
+                    NextVelPtr[j2] = (jj2 > 0) ? NextVelPtr[j2] + alpha_dy_1 * VelPtr[j2] + beta_dy_1 * VelPtr[j2-1] : NextVelPtr[j2] + alpha_dy_1 * VelPtr[j2];
+                    NextVelPtr[j2] = (jj2 > 0) ? NextVelPtr[j2] + alpha_dy_2 * VelPtr[j2] + beta_dy_2 * VelPtr[j2-1] : NextVelPtr[j2] + alpha_dy_2 * VelPtr[j2];
+                    NextVelPtr[j2] = (jj2 < Nyr-1) ? NextVelPtr[j2] + beta_dy_2 * VelPtr[j2+1] : NextVelPtr[j2];
+                }
             }
         }
     }
+//    for (int i = 0; i < Nxr; i++) {
+//        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+//        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+//        int start = i*Nyr;
+//        for (int j = 0; j < Nyr; j+=blocksize) {
+//            for (int k = j; k < Nyr && k < j + blocksize; k++) {
+//                int curr = start + k;
+//                // Update x
+//                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
+//                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
+//                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
+//                // Update y
+//                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
+//                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
+//                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+//            }
+//        }
+//    }
 }
 
 void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U) {
     /// Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
+    int Nyr = model->GetNy() - 2;
+    int Nxr = model->GetNx() - 2;
     double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
-
-    /// Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
+    const int blocksize = 4;
 
     double* Vel_iMinus = nullptr;
     double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
@@ -251,15 +269,17 @@ void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, boo
         for (int i = 0; i < Nxr; i++) {
             if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
             int start = i*Nyr;
-            for (int j = 0; j < Nyr; j++) {
-                int curr = start+j;
-                Vel_Vel = bdx * Vel[curr] * Vel[curr];
-                Vel_Other = bdy * Vel[curr] * Other[curr];
-                Vel_Vel_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Vel[curr];
-                Vel_Other_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Other[curr];
-                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-                NextVel[curr] *= dt;
-                NextVel[curr] += Vel[curr];
+            for (int j = 0; j < Nyr; j+=blocksize) {
+                for (int k = j; k < Nyr && k < j + blocksize; k++) {
+                    int curr = start + k;
+                    Vel_Vel = bdx * Vel[curr] * Vel[curr];
+                    Vel_Other = bdy * Vel[curr] * Other[curr];
+                    Vel_Vel_Minus_1 = (i == 0) ? 0 : bdx * Vel_iMinus[k] * Vel[curr];
+                    Vel_Other_Minus_1 = (k == 0) ? 0 : bdy * Vel[curr - 1] * Other[curr];
+                    NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                    NextVel[curr] *= dt;
+                    NextVel[curr] += Vel[curr];
+                }
             }
         }
     }
@@ -267,15 +287,17 @@ void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, boo
         for (int i = 0; i < Nxr; i++) {
             if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
             int start = i*Nyr;
-            for (int j = 0; j < Nyr; j++) {
-                int curr = start + j;
-                Vel_Vel = bdy * Vel[curr] * Vel[curr];
-                Vel_Other = bdx * Vel[curr] * Other[curr];
-                Vel_Vel_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Vel[curr];
-                Vel_Other_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Other[curr];
-                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-                NextVel[curr] *= dt;
-                NextVel[curr] += Vel[curr];
+            for (int j = 0; j < Nyr; j+=blocksize) {
+                for (int k = j; k < Nyr && k < j + blocksize; k++) {
+                    int curr = start + k;
+                    Vel_Vel = bdy * Vel[curr] * Vel[curr];
+                    Vel_Other = bdx * Vel[curr] * Other[curr];
+                    Vel_Vel_Minus_1 = (k == 0) ? 0 : bdy * Vel[curr - 1] * Vel[curr];
+                    Vel_Other_Minus_1 = (i == 0) ? 0 : bdx * Vel_iMinus[k] * Other[curr];
+                    NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                    NextVel[curr] *= dt;
+                    NextVel[curr] += Vel[curr];
+                }
             }
         }
     }
