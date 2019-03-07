@@ -25,10 +25,7 @@ Burgers2P::Burgers2P(Model &m) {
 
     /// Allocate memory to instance variables
     U = new double[NyrNxr];
-    V = new double[NyrNxr];
-
-    /// Term arrays
-    dVel = new double[NyrNxr];
+    V = new double[NyrNxr]; 
 
     /// Caches
     upVel = new double[Nxr];
@@ -48,9 +45,6 @@ Burgers2P::~Burgers2P() {
     /// Delete U and V
     delete[] U;
     delete[] V;
-
-    /// Delete term arrays
-    delete[] dVel;
 
     /// Delete Caches
     delete[] upVel;
@@ -257,25 +251,18 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
         for (int j = 0; j < Nyr; j++) {
             int curr = i*Nyr+j;
             // Update x
-            dVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[j] :alpha_dx_1 * Vel[curr];
-            dVel[curr] = (i > 0) ? dVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :dVel[curr] + alpha_dx_2 * Vel[curr];
-            dVel[curr] = (i < Nxr-1) ? dVel[curr] + beta_dx_2 * Vel_iPlus[j] : dVel[curr];
+            NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[j] :alpha_dx_1 * Vel[curr];
+            NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :NextVel[curr] + alpha_dx_2 * Vel[curr];
+            NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             // Update y
-            dVel[curr] = (j > 0) ? dVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : dVel[curr] + alpha_dy_1 * Vel[curr];
-            dVel[curr] = (j > 0) ? dVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : dVel[curr] + alpha_dy_2 * Vel[curr];
-            dVel[curr] = (j < Nyr-1) ? dVel[curr] + beta_dy_2 * Vel[curr+1] : dVel[curr];
-
-//            switch(SELECT_U) {
-//                case true:
-//                    break;
-//                case false:
-//                    break;
-//            }
+            NextVel[curr] = (j > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
+            NextVel[curr] = (j > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
+            NextVel[curr] = (j < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
 
     /// Update bounds here
-    UpdateBoundsLinear(dVel);
+    UpdateBoundsLinear(NextVel);
     /// Update bounds here
 
     /// Addition through non-linear terms
@@ -291,8 +278,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
             if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
-            NextVel[i] = dVel[i] -
-                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+            NextVel[i] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
         }
@@ -308,13 +294,11 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
             if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i/Nyr] * Vel[i];
 
-            NextVel[i] = dVel[i] -
-                    (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+            NextVel[i] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
         }
     }
-
     return NextVel;
 }
 

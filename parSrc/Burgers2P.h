@@ -33,9 +33,6 @@ private:
     double* V;
     double E;
 
-    /// Term arrays
-    double* dVel;
-
     /// Caches for partitioning matrix
     double* upVel;
     double* downVel;
