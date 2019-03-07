@@ -300,7 +300,19 @@ double* Burgers2P::NextVelocityState(bool SELECT_U) {
 
     /// Addition through non-linear terms
     /// Matrix addition through all terms
+    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
     if (SELECT_U) {
+
+        for (int i = 0; i < Nxr; i++) {
+            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            for (int j = 0; j < Nyr; j++) {
+                int curr = i*Nyr+j;
+                Vel_Vel = bdx * Vel[curr] * Vel[curr];
+                Vel_Other = bdy * Vel[curr] * Other[curr];
+                Vel_Vel_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Vel[curr];
+            }
+        }
+
         for (int i = 0; i < NyrNxr; i++) {
             double Vel_Vel = bdx * Vel[i] * Vel[i];
             double Vel_Other = bdy * Vel[i] * Other[i];
