@@ -1,6 +1,7 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <mpi.h>
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
@@ -29,12 +30,6 @@ Burgers2P::Burgers2P(Model &m) {
     /// Term arrays
     dVel_2 = new double[NyrNxr];
     dVel = new double[NyrNxr];
-
-    /// Matrix coefficients
-    dVel_dx_2_coeffs = new double[Nxr*Nxr];
-    dVel_dy_2_coeffs = new double[Nyr*Nyr];
-    dVel_dx_coeffs = new double[Nxr*Nxr];
-    dVel_dy_coeffs = new double[Nyr*Nyr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -68,12 +63,6 @@ Burgers2P::~Burgers2P() {
     delete[] myDownVel;
     delete[] myLeftVel;
     delete[] myRightVel;
-
-    /// Delete matrix coefficients
-    delete[] dVel_dx_2_coeffs;
-    delete[] dVel_dy_2_coeffs;
-    delete[] dVel_dx_coeffs;
-    delete[] dVel_dy_coeffs;
 
     /// model is not dynamically alloc
 }
@@ -114,10 +103,6 @@ void Burgers2P::SetIntegratedVelocity() {
     /// Get model parameters
     int Nt = model->GetNt();
 
-    /// Set Matrix Coefficients
-    SetMatrixCoefficients();
-
-
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
         double* NextU = NextVelocityState(U, V, true);
@@ -128,6 +113,7 @@ void Burgers2P::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
+        if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
 
@@ -255,15 +241,32 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     double* NextVel = new double[NyrNxr];
 
     /// Compute first & second derivatives
-    // x
-    for (int i = 0; i < Nyr; i++) {
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
-    }
-    // y
-    for (int i = 0; i < NyrNxr; i += Nyr) {
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
+    double alpha_dx_2 = model->GetAlphaDx_2();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double alpha_dy_2 = model->GetAlphaDy_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+    double alpha_dx_1 = model->GetAlphaDx_1();
+    double beta_dx_1 = model->GetBetaDx_1();
+    double alpha_dy_1 = model->GetAlphaDy_1();
+    double beta_dy_1 = model->GetBetaDy_1();
+
+    // loop blocking + pre-fetching previous & next column from memory
+    double* Vel_iMinus = nullptr;
+    double* Vel_iPlus = nullptr;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        for (int j = 0; j < Nyr; j++) {
+            int curr = i*Nyr+j;
+            // Update x
+            dVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[j] :alpha_dx_1 * Vel[curr];
+            dVel_2[curr] = (i > 0) ? alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :alpha_dx_2 * Vel[curr];
+            dVel_2[curr] = (i < Nxr-1) ? dVel_2[curr] + beta_dx_2 * Vel_iPlus[j] : dVel_2[curr];
+            // Update y
+            dVel[curr] = (j > 0) ? dVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : dVel[curr] + alpha_dy_1 * Vel[curr];
+            dVel_2[curr] = (j > 0) ? dVel_2[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : dVel_2[curr] + alpha_dy_2 * Vel[curr];
+            dVel_2[curr] = (j < Nyr-1) ? dVel_2[curr] + beta_dy_2 * Vel[curr+1] : dVel_2[curr];
+        }
     }
 
     UpdateBoundsLinear(dVel_2, dVel);
@@ -305,29 +308,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     }
 
     return NextVel;
-}
-
-/**
- * @brief Private helper function that sets matrix coefficients for differentials
- * */
-void Burgers2P::SetMatrixCoefficients() {
-    /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
-    double alpha_dx_2 = model->GetAlphaDx_2();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double alpha_dy_2 = model->GetAlphaDy_2();
-    double beta_dy_2 = model->GetBetaDy_2();
-    double alpha_dx_1 = model->GetAlphaDx_1();
-    double beta_dx_1 = model->GetBetaDx_1();
-    double alpha_dy_1 = model->GetAlphaDy_1();
-    double beta_dy_1 = model->GetBetaDy_1();
-
-    /// Set coefficients (alpha along the LD)
-    GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
-    GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
-    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, dVel_dx_coeffs);
-    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, dVel_dy_coeffs);
 }
 
 /**

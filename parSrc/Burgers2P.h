@@ -19,7 +19,6 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    void SetMatrixCoefficients();
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetCaches(double* Vel);
     void UpdateBoundsLinear(double* dVel_2, double* dVel);
@@ -32,10 +31,6 @@ private:
     Model* model;
     double* U;
     double* V;
-    double* dVel_dx_2_coeffs;
-    double* dVel_dy_2_coeffs;
-    double* dVel_dx_coeffs;
-    double* dVel_dy_coeffs;
     double E;
 
     /// Term arrays
