@@ -253,21 +253,25 @@ double* Burgers2P::NextVelocityState(bool SELECT_U) {
     double beta_dy_1 = model->GetBetaDy_1();
 
     // loop blocking + pre-fetching previous & next column from memory
+    const int blocksize = 4;
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
     for (int i = 0; i < Nxr; i++) {
         if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
         if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-        for (int j = 0; j < Nyr; j++) {
-            int curr = i*Nyr+j;
-            // Update x
-            NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[j] :alpha_dx_1 * Vel[curr];
-            NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :NextVel[curr] + alpha_dx_2 * Vel[curr];
-            NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-            // Update y
-            NextVel[curr] = (j > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
-            NextVel[curr] = (j > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
-            NextVel[curr] = (j < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j+=blocksize) {
+            for (int k = j; k < Nyr && k < j + blocksize; k++) {
+                int curr = start + k;
+                // Update x
+                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
+                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
+                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
+                // Update y
+                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
+                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
+                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+            }
         }
     }
 
@@ -304,8 +308,9 @@ double* Burgers2P::NextVelocityState(bool SELECT_U) {
     if (SELECT_U) {
         for (int i = 0; i < Nxr; i++) {
             if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            int start = i*Nyr;
             for (int j = 0; j < Nyr; j++) {
-                int curr = i*Nyr+j;
+                int curr = start+j;
                 Vel_Vel = bdx * Vel[curr] * Vel[curr];
                 Vel_Other = bdy * Vel[curr] * Other[curr];
                 Vel_Vel_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Vel[curr];
@@ -321,8 +326,9 @@ double* Burgers2P::NextVelocityState(bool SELECT_U) {
     else {
         for (int i = 0; i < Nxr; i++) {
             if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            int start = i*Nyr;
             for (int j = 0; j < Nyr; j++) {
-                int curr = i*Nyr+j;
+                int curr = start + j;
                 Vel_Vel = bdy * Vel[curr] * Vel[curr];
                 Vel_Other = bdx * Vel[curr] * Other[curr];
                 Vel_Vel_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Vel[curr];
