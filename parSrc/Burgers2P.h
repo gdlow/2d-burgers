@@ -10,7 +10,7 @@
  * */
 class Burgers2P {
 public:
-    Burgers2P(Model &m);
+    explicit Burgers2P(Model &m);
     ~Burgers2P();
 
     void SetInitialVelocity();
@@ -19,17 +19,19 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    double* NextVelocityState(bool SELECT_U);
+    inline double* NextVelocityState(bool SELECT_U);
     void SetCaches(double* Vel);
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
     void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
-    double ComputeR(double x, double y);
 
     /// Burger parameters
     Model* model;
-    double* U;
-    double* V;
+    struct {
+        double* U;
+        double* V;
+    } localVel;
+
     double E;
 
     /// Caches for partitioning matrix

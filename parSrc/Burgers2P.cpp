@@ -24,8 +24,8 @@ Burgers2P::Burgers2P(Model &m) {
     int NyrNxr = model->GetLocNyrNxr();
 
     /// Allocate memory to instance variables
-    U = new double[NyrNxr];
-    V = new double[NyrNxr]; 
+    localVel.U = new double[NyrNxr];
+    localVel.V = new double[NyrNxr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -47,8 +47,8 @@ Burgers2P::Burgers2P(Model &m) {
  * */
 Burgers2P::~Burgers2P() {
     /// Delete U and V
-    delete[] U;
-    delete[] V;
+    delete[] localVel.U;
+    delete[] localVel.V;
 
     /// Delete Caches
     delete[] upVel;
@@ -89,9 +89,9 @@ void Burgers2P::SetInitialVelocity() {
         for (int j = 0; j < Nyr; j++) {
             double x = loc_x0 + i*dx;
             double y = loc_y0 - j*dy;
-            double r = ComputeR(x, y);
-            U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
-            V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            double r = pow(x*x+y*y, 0.5);
+            localVel.U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            localVel.V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
@@ -109,10 +109,10 @@ void Burgers2P::SetIntegratedVelocity() {
         double* NextV = NextVelocityState(false);
 
         /// Delete current pointer and point to NextVel
-        delete[] U;
-        delete[] V;
-        U = NextU;
-        V = NextV;
+        delete[] localVel.U;
+        delete[] localVel.V;
+        localVel.U = NextU;
+        localVel.V = NextV;
         if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
@@ -138,10 +138,10 @@ void Burgers2P::WriteVelocityFile() {
     of.precision(4); // 4 s.f.
 
     /// Write U velocity
-    WriteOf(U, M, of, 'U');
+    WriteOf(localVel.U, M, of, 'U');
 
     /// Write V velocity
-    WriteOf(V, M, of, 'V');
+    WriteOf(localVel.V, M, of, 'V');
     of.close();
 
     /// Delete 2D pointer
@@ -155,7 +155,7 @@ void Burgers2P::WriteVelocityFile() {
  * @brief Calculates and sets energy of velocity field
  * */
 void Burgers2P::SetEnergy() {
-    E = CalculateEnergyState(U, V);
+    E = CalculateEnergyState(localVel.U, localVel.V);
 }
 
 /**
@@ -217,7 +217,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-double* Burgers2P::NextVelocityState(bool SELECT_U) {
+inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -233,8 +233,8 @@ double* Burgers2P::NextVelocityState(bool SELECT_U) {
     int right = model->GetRight();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? U : V;
-    double* Other = (SELECT_U)? V : U;
+    double* Vel = (SELECT_U) ? localVel.U : localVel.V;
+    double* Other = (SELECT_U)? localVel.V : localVel.U;
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
@@ -434,14 +434,4 @@ void Burgers2P::AssembleMatrix(double* Vel, double** M) {
     }
 
     delete[] globalVel;
-}
-
-/**
- * @brief Private helper function computing R for SetInitialVelocity()
- * @param x real x distance to origin
- * @param y real y distance to origin
- * */
-double Burgers2P::ComputeR(double x, double y) {
-    double r = pow(x*x+y*y, 0.5);
-    return r;
 }
