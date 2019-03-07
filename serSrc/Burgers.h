@@ -18,22 +18,13 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    double ComputeR(double x, double y);
-    void SetMatrixCoefficients();
-    double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
+    double* NextVelocityState(bool SELECT_U);
 
     /// Burger parameters
     Model* model;
     double* U;
     double* V;
-    double* dVel_dx_2_coeffs;
-    double* dVel_dy_2_coeffs;
-    double* dVel_dx_coeffs;
-    double* dVel_dy_coeffs;
     double E;
 
-    /// Term arrays
-    double* dVel_2;
-    double* dVel;
 };
 #endif //CLASS_BURGERS

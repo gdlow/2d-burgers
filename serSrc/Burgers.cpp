@@ -26,34 +26,15 @@ Burgers::Burgers(Model &m) {
     U = new double[Nyr*Nxr];
     V = new double[Nyr*Nxr];
 
-    /// Matrix coefficients
-    dVel_dx_2_coeffs = new double[Nxr*Nxr];
-    dVel_dy_2_coeffs = new double[Nyr*Nyr];
-    dVel_dx_coeffs = new double[Nxr*Nxr];
-    dVel_dy_coeffs = new double[Nyr*Nyr];
-
-    /// Term arrays
-    dVel_2 = new double[Nyr*Nxr];
-    dVel = new double[Nyr*Nxr];
 }
 
 /**
  * @brief Destructor: Deletes all allocated pointers in the class instance
  * */
 Burgers::~Burgers() {
-    /// Delete matrix coefficients
-    delete[] dVel_dx_2_coeffs;
-    delete[] dVel_dy_2_coeffs;
-    delete[] dVel_dx_coeffs;
-    delete[] dVel_dy_coeffs;
-
     /// Delete U and V
     delete[] U;
     delete[] V;
-
-    /// Delete term arrays
-    delete[] dVel_2;
-    delete[] dVel;
 
     /// model is not dynamically alloc
 }
@@ -80,7 +61,7 @@ void Burgers::SetInitialVelocity() {
             // Assumes x0 and y0 are identifying top LHS of matrix
             double y = y0 - (j+1)*dy;
             double x = x0 + (i+1)*dx;
-            double r = ComputeR(x, y);
+            double r = pow(x*x+y*y, 0.5);
             // Store in column-major format
             U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
             V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
@@ -95,13 +76,10 @@ void Burgers::SetIntegratedVelocity() {
     /// Get model parameters
     int Nt = model->GetNt();
 
-    /// Set Matrix Coefficients
-    SetMatrixCoefficients();
-
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        double* NextU = NextVelocityState(U, V, true);
-        double* NextV = NextVelocityState(U, V, false);
+        double* NextU = NextVelocityState(true);
+        double* NextV = NextVelocityState(false);
         /// Delete current pointer and point to NextVel
         delete[] U;
         delete[] V;
@@ -196,7 +174,7 @@ void Burgers::SetEnergy() {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
+double* Burgers::NextVelocityState(bool SELECT_U) {
     /// Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
@@ -209,68 +187,14 @@ double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     int Nxr = Nx - 2;
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? Ui : Vi;
-    double* Other = (SELECT_U)? Vi : Ui;
+    double* Vel = (SELECT_U) ? U : V;
+    double* Other = (SELECT_U)? V : U;
 
     /// Generate NextVel
     double* NextVel = new double[Nyr*Nxr];
 
     /// Compute first & second derivatives
-    // x
-    for (int i = 0; i < Nyr; i++) {
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
-    }
-    // y
-    for (int i = 0; i < Nyr*Nxr; i += Nyr) {
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
-    }
-
-    /// Matrix addition through all terms
-    if (SELECT_U) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            double Vel_Vel = bdx * Vel[i] * Vel[i];
-            double Vel_Other = bdy * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
-            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
-
-            NextVel[i] = dVel_2[i] - dVel[i] -
-                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-            NextVel[i] *= dt;
-            NextVel[i] += Vel[i];
-        }
-    }
-    else {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            double Vel_Vel = bdy * Vel[i] * Vel[i];
-            double Vel_Other = bdx * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
-            double Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
-
-            NextVel[i] = dVel_2[i] - dVel[i] -
-                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-            NextVel[i] *= dt;
-            NextVel[i] += Vel[i];
-        }
-    }
-
-    return NextVel;
-}
-
-/**
- * @brief Private helper function that sets matrix coefficients for differentials
- * */
-void Burgers::SetMatrixCoefficients() {
-    /// Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-
-    /// Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    /// Burger constants
+    /// Compute first & second derivatives
     double alpha_dx_2 = model->GetAlphaDx_2();
     double beta_dx_2 = model->GetBetaDx_2();
     double alpha_dy_2 = model->GetAlphaDy_2();
@@ -280,19 +204,63 @@ void Burgers::SetMatrixCoefficients() {
     double alpha_dy_1 = model->GetAlphaDy_1();
     double beta_dy_1 = model->GetBetaDy_1();
 
-    /// Set coefficients (alpha along the LD)
-    GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
-    GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
-    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, dVel_dx_coeffs);
-    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, dVel_dy_coeffs);
-}
+    // loop blocking + pre-fetching previous & next column from memory
+    const int blocksize = 4;
+    double* Vel_iMinus = nullptr;
+    double* Vel_iPlus = nullptr;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j+=blocksize) {
+            for (int k = j; k < Nyr && k < j + blocksize; k++) {
+                int curr = start + k;
+                // Update x
+                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
+                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
+                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
+                // Update y
+                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
+                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
+                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+            }
+        }
+    }
 
-/**
- * @brief Private helper function computing R for SetInitialVelocity()
- * @param x real x distance to origin
- * @param y real y distance to origin
- * */
-double Burgers::ComputeR(double x, double y) {
-    double r = pow(x*x+y*y, 0.5);
-    return r;
+    /// Matrix addition through all terms
+    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
+    if (SELECT_U) {
+        for (int i = 0; i < Nxr; i++) {
+            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            int start = i*Nyr;
+            for (int j = 0; j < Nyr; j++) {
+                int curr = start+j;
+                Vel_Vel = bdx * Vel[curr] * Vel[curr];
+                Vel_Other = bdy * Vel[curr] * Other[curr];
+                Vel_Vel_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Vel[curr];
+                Vel_Other_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Other[curr];
+                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                NextVel[curr] *= dt;
+                NextVel[curr] += Vel[curr];
+            }
+        }
+    }
+    else {
+        for (int i = 0; i < Nxr; i++) {
+            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            int start = i*Nyr;
+            for (int j = 0; j < Nyr; j++) {
+                int curr = start + j;
+                Vel_Vel = bdy * Vel[curr] * Vel[curr];
+                Vel_Other = bdx * Vel[curr] * Other[curr];
+                Vel_Vel_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Vel[curr];
+                Vel_Other_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Other[curr];
+                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                NextVel[curr] *= dt;
+                NextVel[curr] += Vel[curr];
+            }
+        }
+    }
+
+    return NextVel;
 }
