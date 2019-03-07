@@ -4,7 +4,7 @@
 #include "BLAS_Wrapper.h"
 #include "Helpers.h"
 #include "Burgers.h"
-
+#include <iostream>
 using namespace std;
 
 /**
@@ -85,6 +85,7 @@ void Burgers::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
+        cout << "step: " << k << "\n";
     }
 }
 
@@ -178,9 +179,6 @@ double* Burgers::NextVelocityState(bool SELECT_U) {
     /// Get model parameters
     int Ny = model->GetNy();
     int Nx = model->GetNx();
-    double dt = model->GetDt();
-    double bdx = model->GetBDx();
-    double bdy = model->GetBDy();
 
     /// Reduced parameters
     int Nyr = Ny - 2;
@@ -193,8 +191,15 @@ double* Burgers::NextVelocityState(bool SELECT_U) {
     /// Generate NextVel
     double* NextVel = new double[Nyr*Nxr];
 
-    /// Compute first & second derivatives
-    /// Compute first & second derivatives
+    SetLinearTerms(Vel, NextVel);
+    SetNonLinearTerms(Vel, Other, NextVel, SELECT_U);
+
+    return NextVel;
+}
+
+void Burgers::SetLinearTerms(double* Vel, double* NextVel) {
+    int Nxr = model->GetNx() - 2;
+    int Nyr = model->GetNy() - 2;
     double alpha_dx_2 = model->GetAlphaDx_2();
     double beta_dx_2 = model->GetBetaDx_2();
     double alpha_dy_2 = model->GetAlphaDy_2();
@@ -226,8 +231,21 @@ double* Burgers::NextVelocityState(bool SELECT_U) {
             }
         }
     }
+}
 
-    /// Matrix addition through all terms
+void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U) {
+    /// Get model parameters
+    int Ny = model->GetNy();
+    int Nx = model->GetNx();
+    double dt = model->GetDt();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+
+    /// Reduced parameters
+    int Nyr = Ny - 2;
+    int Nxr = Nx - 2;
+
+    double* Vel_iMinus = nullptr;
     double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
     if (SELECT_U) {
         for (int i = 0; i < Nxr; i++) {
@@ -261,6 +279,4 @@ double* Burgers::NextVelocityState(bool SELECT_U) {
             }
         }
     }
-
-    return NextVel;
 }
