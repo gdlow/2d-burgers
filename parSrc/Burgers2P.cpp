@@ -36,6 +36,10 @@ Burgers2P::Burgers2P(Model &m) {
     myDownVel = new double[Nxr];
     myLeftVel = new double[Nyr];
     myRightVel = new double[Nyr];
+
+    /// Generate new MPI request and stats
+    reqs = new MPI_Request[8];
+    stats = new MPI_Status[8];
 }
 
 /**
@@ -55,6 +59,10 @@ Burgers2P::~Burgers2P() {
     delete[] myDownVel;
     delete[] myLeftVel;
     delete[] myRightVel;
+
+    /// Deallocate memory of MPI requests and stats
+    delete[] stats;
+    delete[] reqs;
 
     /// model is not dynamically alloc
 }
@@ -220,7 +228,9 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
 
     /// Get ranks
     int up = model->GetUp();
+    int down = model->GetDown();
     int left = model->GetLeft();
+    int right = model->GetRight();
 
     /// Set aliases for computation
     double* Vel = (SELECT_U) ? Ui : Vi;
@@ -262,8 +272,31 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
     }
 
     /// Update bounds here
-    UpdateBoundsLinear(NextVel);
-    /// Update bounds here
+    /// MPI wait for all comms to finish
+    MPI_Waitall(8, reqs, stats);
+
+    /// Fix left and right boundaries
+    for (int j = 0; j < Nyr; j++) {
+        if (left >= 0) {
+            NextVel[j] += beta_dx_2*leftVel[j];
+            NextVel[j] += beta_dx_1*leftVel[j];
+        }
+        if (right >= 0) {
+            NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+        }
+    }
+
+    /// Fix up and down boundaries
+    for (int i = 0; i < Nxr; i++) {
+        if (up >= 0) {
+            NextVel[i*Nyr] += beta_dy_2*upVel[i];
+            NextVel[i*Nyr] += beta_dy_1*upVel[i];
+        }
+        if (down >= 0) {
+            NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+        }
+    }
+
 
     /// Addition through non-linear terms
     /// Matrix addition through all terms
@@ -308,10 +341,6 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
  * @param Vel pointer to U or V
  * */
 void Burgers2P::SetCaches(double* Vel) {
-    /// Generate new MPI request and stats
-    reqs = new MPI_Request[8];
-    stats = new MPI_Status[8];
-
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -349,56 +378,6 @@ void Burgers2P::SetCaches(double* Vel) {
     /* Send left boundary to left and receive into right boundary */
     MPI_Isend(myLeftVel, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[6]);
     MPI_Irecv(rightVel, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[7]);
-}
-
-/**
- * @brief Private helper function that updates the linear boundary conditions for the program's sub-matrix
- * @param dVel_2 pointer to dVel_2 in NextVelocityState()
- * @param dVel pointer to dVel in NextVelocityState()
- * */
-void Burgers2P::UpdateBoundsLinear(double* dVel) {
-    /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double beta_dx_1 = model->GetBetaDx_1();
-    double beta_dy_2 = model->GetBetaDy_2();
-    double beta_dy_1 = model->GetBetaDy_1();
-
-    /// Get ranks
-    int up = model->GetUp();
-    int down = model->GetDown();
-    int left = model->GetLeft();
-    int right = model->GetRight();
-
-    /// MPI wait for all comms to finish
-    MPI_Waitall(8, reqs, stats);
-
-    /// Fix left and right boundaries
-    for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) {
-            dVel[j] += beta_dx_2*leftVel[j];
-            dVel[j] += beta_dx_1*leftVel[j];
-        }
-        if (right >= 0) {
-            dVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-        }
-    }
-
-    /// Fix up and down boundaries
-    for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) {
-            dVel[i*Nyr] += beta_dy_2*upVel[i];
-            dVel[i*Nyr] += beta_dy_1*upVel[i];
-        }
-        if (down >= 0) {
-            dVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-        }
-    }
-
-    /// Deallocate memory of MPI requests and stats
-    delete[] stats;
-    delete[] reqs;
 }
 
 /**

@@ -21,7 +21,6 @@ public:
 private:
     double* NextVelocityState(double* Ui, double* Vi, bool U_OR_V);
     void SetCaches(double* Vel);
-    void UpdateBoundsLinear(double* dVel);
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
     void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
