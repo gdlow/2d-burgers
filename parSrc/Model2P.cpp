@@ -115,10 +115,10 @@ void Model::SetNumerics() {
     alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
     beta_dx_2 = c/pow(dx,2.0);
     beta_dy_2 = c/pow(dy,2.0);
-    alpha_dx_1 = ax/dx;
-    alpha_dy_1 = ay/dy;
-    beta_dx_1 = -ax/dx;
-    beta_dy_1 = -ay/dy;
+    alpha_dx_1 = -ax/dx;
+    alpha_dy_1 = -ay/dy;
+    beta_dx_1 = ax/dx;
+    beta_dy_1 = ay/dy;
 }
 
 /**

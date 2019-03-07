@@ -28,7 +28,6 @@ Burgers2P::Burgers2P(Model &m) {
     V = new double[NyrNxr];
 
     /// Term arrays
-    dVel_2 = new double[NyrNxr];
     dVel = new double[NyrNxr];
 
     /// Caches
@@ -51,7 +50,6 @@ Burgers2P::~Burgers2P() {
     delete[] V;
 
     /// Delete term arrays
-    delete[] dVel_2;
     delete[] dVel;
 
     /// Delete Caches
@@ -260,17 +258,27 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             int curr = i*Nyr+j;
             // Update x
             dVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[j] :alpha_dx_1 * Vel[curr];
-            dVel_2[curr] = (i > 0) ? alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :alpha_dx_2 * Vel[curr];
-            dVel_2[curr] = (i < Nxr-1) ? dVel_2[curr] + beta_dx_2 * Vel_iPlus[j] : dVel_2[curr];
+            dVel[curr] = (i > 0) ? dVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :dVel[curr] + alpha_dx_2 * Vel[curr];
+            dVel[curr] = (i < Nxr-1) ? dVel[curr] + beta_dx_2 * Vel_iPlus[j] : dVel[curr];
             // Update y
             dVel[curr] = (j > 0) ? dVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : dVel[curr] + alpha_dy_1 * Vel[curr];
-            dVel_2[curr] = (j > 0) ? dVel_2[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : dVel_2[curr] + alpha_dy_2 * Vel[curr];
-            dVel_2[curr] = (j < Nyr-1) ? dVel_2[curr] + beta_dy_2 * Vel[curr+1] : dVel_2[curr];
+            dVel[curr] = (j > 0) ? dVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : dVel[curr] + alpha_dy_2 * Vel[curr];
+            dVel[curr] = (j < Nyr-1) ? dVel[curr] + beta_dy_2 * Vel[curr+1] : dVel[curr];
+
+//            switch(SELECT_U) {
+//                case true:
+//                    break;
+//                case false:
+//                    break;
+//            }
         }
     }
 
-    UpdateBoundsLinear(dVel_2, dVel);
+    /// Update bounds here
+    UpdateBoundsLinear(dVel);
+    /// Update bounds here
 
+    /// Addition through non-linear terms
     /// Matrix addition through all terms
     if (SELECT_U) {
         for (int i = 0; i < NyrNxr; i++) {
@@ -283,7 +291,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
             if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
 
-            NextVel[i] = dVel_2[i] - dVel[i] -
+            NextVel[i] = dVel[i] -
                          (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
@@ -300,7 +308,7 @@ double* Burgers2P::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
             if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
             if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i/Nyr] * Vel[i];
 
-            NextVel[i] = dVel_2[i] - dVel[i] -
+            NextVel[i] = dVel[i] -
                     (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
             NextVel[i] *= dt;
             NextVel[i] += Vel[i];
@@ -364,7 +372,7 @@ void Burgers2P::SetCaches(double* Vel) {
  * @param dVel_2 pointer to dVel_2 in NextVelocityState()
  * @param dVel pointer to dVel in NextVelocityState()
  * */
-void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
+void Burgers2P::UpdateBoundsLinear(double* dVel) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -385,22 +393,22 @@ void Burgers2P::UpdateBoundsLinear(double* dVel_2, double* dVel) {
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
         if (left >= 0) {
-            dVel_2[j] += beta_dx_2*leftVel[j];
+            dVel[j] += beta_dx_2*leftVel[j];
             dVel[j] += beta_dx_1*leftVel[j];
         }
         if (right >= 0) {
-            dVel_2[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+            dVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
         }
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
         if (up >= 0) {
-            dVel_2[i*Nyr] += beta_dy_2*upVel[i];
+            dVel[i*Nyr] += beta_dy_2*upVel[i];
             dVel[i*Nyr] += beta_dy_1*upVel[i];
         }
         if (down >= 0) {
-            dVel_2[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+            dVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
         }
     }
 
