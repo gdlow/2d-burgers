@@ -300,36 +300,39 @@ double* Burgers2P::NextVelocityState(bool SELECT_U) {
 
     /// Addition through non-linear terms
     /// Matrix addition through all terms
+    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
     if (SELECT_U) {
-        for (int i = 0; i < NyrNxr; i++) {
-            double Vel_Vel = bdx * Vel[i] * Vel[i];
-            double Vel_Other = bdy * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
-            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
-
-            // Update non-linear BC
-            if (i < Nyr && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[i] * Vel[i];
-            if (i % Nyr == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i/Nyr] * Other[i];
-
-            NextVel[i] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-            NextVel[i] *= dt;
-            NextVel[i] += Vel[i];
+        for (int i = 0; i < Nxr; i++) {
+            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            for (int j = 0; j < Nyr; j++) {
+                int curr = i*Nyr+j;
+                Vel_Vel = bdx * Vel[curr] * Vel[curr];
+                Vel_Other = bdy * Vel[curr] * Other[curr];
+                Vel_Vel_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Vel[curr];
+                Vel_Other_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Other[curr];
+                if (i == 0 && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[curr] * Vel[curr];
+                if (j == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i] * Other[curr];
+                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                NextVel[curr] *= dt;
+                NextVel[curr] += Vel[curr];
+            }
         }
     }
     else {
-        for (int i = 0; i < NyrNxr; i++) {
-            double Vel_Vel = bdy * Vel[i] * Vel[i];
-            double Vel_Other = bdx * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
-            double Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
-
-            // Update non-linear BC
-            if (i < Nyr && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[i] * Other[i];
-            if (i % Nyr == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i/Nyr] * Vel[i];
-
-            NextVel[i] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-            NextVel[i] *= dt;
-            NextVel[i] += Vel[i];
+        for (int i = 0; i < Nxr; i++) {
+            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+            for (int j = 0; j < Nyr; j++) {
+                int curr = i*Nyr+j;
+                Vel_Vel = bdy * Vel[curr] * Vel[curr];
+                Vel_Other = bdx * Vel[curr] * Other[curr];
+                Vel_Vel_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Vel[curr];
+                Vel_Other_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Other[curr];
+                if (i == 0 && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[curr] * Other[curr];
+                if (j == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i] * Vel[curr];
+                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                NextVel[curr] *= dt;
+                NextVel[curr] += Vel[curr];
+            }
         }
     }
     return NextVel;
