@@ -273,24 +273,15 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
 
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) {
-            NextVel[j] += beta_dx_sum*leftVel[j];
-        }
-        if (right >= 0) {
-            NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-        }
+        if (left >= 0) NextVel[j] += beta_dx_sum*leftVel[j];
+        if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) {
-            NextVel[i*Nyr] += beta_dy_sum*upVel[i];
-        }
-        if (down >= 0) {
-            NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-        }
+        if (up >= 0) NextVel[i*Nyr] += beta_dy_sum*upVel[i];
+        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
-
 
     /// Addition through non-linear terms
     /// Matrix addition through all terms
