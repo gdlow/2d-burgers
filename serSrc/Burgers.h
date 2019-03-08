@@ -18,13 +18,17 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    double* NextVelocityState(bool SELECT_U);
+    void NextVelocityState(double* NextVel, bool SELECT_U);
     void SetLinearTerms(double* Vel, double* NextVel);
     void SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U);
     /// Burger parameters
     Model* model;
-    double* U;
-    double* V;
+    struct {
+        double* U;
+        double* V;
+        double* NextU;
+        double* NextV;
+    } local;
     double E;
 };
 #endif //CLASS_BURGERS
