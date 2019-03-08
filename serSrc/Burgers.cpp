@@ -187,11 +187,11 @@ void Burgers::NextVelocityState(double* NextVel, bool SELECT_U) {
     double* Vel = (SELECT_U) ? local.U : local.V;
     double* Other = (SELECT_U)? local.V : local.U;
 
-    SetLinearTerms(Vel, NextVel);
-    SetNonLinearTerms(Vel, Other, NextVel, SELECT_U);
+    SetLinearTerms(Vel, Other, NextVel, SELECT_U);
+    // SetNonLinearTerms(Vel, Other, NextVel, SELECT_U);
 }
 
-void Burgers::SetLinearTerms(double* Vel, double* NextVel) {
+void Burgers::SetLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U) {
     int Nxr = model->GetNx() - 2;
     int Nyr = model->GetNy() - 2;
     double alpha_dx_2 = model->GetAlphaDx_2();
@@ -202,95 +202,119 @@ void Burgers::SetLinearTerms(double* Vel, double* NextVel) {
     double beta_dx_1 = model->GetBetaDx_1();
     double alpha_dy_1 = model->GetAlphaDy_1();
     double beta_dy_1 = model->GetBetaDy_1();
+    double dt = model->GetDt();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+    const int blocksize = 8;
 
     // loop blocking + pre-fetching previous & next column from memory
-    const int blocksize = 8;
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
-    double* VelPtr = nullptr;
-    double* NextVelPtr = nullptr;
-    int i, j, i2, j2, ii2, jj2;
-    for (i = 1; i < Nxr-1; i+=blocksize) {
-        for (j = 1; j < Nyr-1; j+=blocksize) {
-            for (i2 = 0, ii2 = i+i2, VelPtr = &Vel[i*Nyr+j], NextVelPtr = &NextVel[i*Nyr+j]; ii2 < Nxr && i2 < blocksize; ++i2, ++ii2, VelPtr += Nyr, NextVelPtr+=Nyr) {
-                if (ii2 > 0) Vel_iMinus = &Vel[(ii2-1)*Nyr+j];
-                if (ii2 < Nxr-1) Vel_iPlus = &Vel[(ii2+1)*Nyr+j];
-                for (j2 = 0, jj2 = j+j2; jj2 < Nyr && j2 < blocksize; ++j2, ++jj2) {
-                    // Update x
-                    NextVelPtr[j2] = alpha_dx_1 * VelPtr[j2] + beta_dx_1 * Vel_iMinus[j2];
-                    NextVelPtr[j2] = NextVelPtr[j2] + alpha_dx_2 * VelPtr[j2] + beta_dx_2 * Vel_iMinus[j2];
-                    NextVelPtr[j2] = NextVelPtr[j2] + beta_dx_2 * Vel_iPlus[j2];
-                    // Update y
-                    NextVelPtr[j2] = NextVelPtr[j2] + alpha_dy_1 * VelPtr[j2] + beta_dy_1 * VelPtr[j2-1];
-                    NextVelPtr[j2] = NextVelPtr[j2] + alpha_dy_2 * VelPtr[j2] + beta_dy_2 * VelPtr[j2-1];
-                    NextVelPtr[j2] = NextVelPtr[j2] + beta_dy_2 * VelPtr[j2+1];
+//    double* VelPtr = nullptr;
+//    double* NextVelPtr = nullptr;
+//    int i, j, i2, j2, ii2, jj2;
+//    for (i = 1; i < Nxr-1; i+=blocksize) {
+//        for (j = 1; j < Nyr-1; j+=blocksize) {
+//            for (i2 = 0, ii2 = i+i2, VelPtr = &Vel[i*Nyr+j], NextVelPtr = &NextVel[i*Nyr+j]; ii2 < Nxr && i2 < blocksize; ++i2, ++ii2, VelPtr += Nyr, NextVelPtr+=Nyr) {
+//                if (ii2 > 0) Vel_iMinus = &Vel[(ii2-1)*Nyr+j];
+//                if (ii2 < Nxr-1) Vel_iPlus = &Vel[(ii2+1)*Nyr+j];
+//                for (j2 = 0, jj2 = j+j2; jj2 < Nyr && j2 < blocksize; ++j2, ++jj2) {
+//                    // Update x
+//                    NextVelPtr[j2] = alpha_dx_1 * VelPtr[j2] + beta_dx_1 * Vel_iMinus[j2];
+//                    NextVelPtr[j2] = NextVelPtr[j2] + alpha_dx_2 * VelPtr[j2] + beta_dx_2 * Vel_iMinus[j2];
+//                    NextVelPtr[j2] = NextVelPtr[j2] + beta_dx_2 * Vel_iPlus[j2];
+//                    // Update y
+//                    NextVelPtr[j2] = NextVelPtr[j2] + alpha_dy_1 * VelPtr[j2] + beta_dy_1 * VelPtr[j2-1];
+//                    NextVelPtr[j2] = NextVelPtr[j2] + alpha_dy_2 * VelPtr[j2] + beta_dy_2 * VelPtr[j2-1];
+//                    NextVelPtr[j2] = NextVelPtr[j2] + beta_dy_2 * VelPtr[j2+1];
+//                }
+//            }
+//        }
+//    }
+//    // Update boundary conditions
+//    // 4 corners
+//    for (int i = 0; i < Nxr; i+=Nxr-1) {
+//        for (int j = 0; j < Nyr; j+= Nyr-1) {
+//            int curr = i*Nyr+j;
+//            NextVel[curr] *= Vel[curr] * (alpha_dx_1 + alpha_dx_2 + alpha_dy_1 + alpha_dy_2);
+//        }
+//    }
+//    // up
+//    for (int i = 1; i < Nxr-1; i++) {
+//        int upIdx = i * Nyr;
+//        int leftIdx = (i-1)*Nyr;
+//        int rightIdx = (i+1)*Nyr;
+//        NextVel[upIdx] = alpha_dy_1 * Vel[upIdx] + alpha_dy_2 * Vel[upIdx];
+//        NextVel[upIdx] += beta_dy_2 * Vel[upIdx+1]; // down contribution
+//        NextVel[upIdx] += alpha_dx_1 * Vel[upIdx] + beta_dx_1 * Vel[leftIdx]; // left contribution
+//        NextVel[upIdx] += beta_dx_2 * Vel[rightIdx]; // right contribution
+//    }
+//    // down
+//    for (int i = 1; i < Nxr-1; i++) {
+//        int downIdx = i * Nyr + (Nyr-1);
+//        int leftIdx = downIdx - Nyr;
+//        int rightIdx = downIdx + Nyr;
+//        NextVel[downIdx] = alpha_dy_1 * Vel[downIdx] + alpha_dy_2 * Vel[downIdx];
+//        NextVel[downIdx] += beta_dy_1 * Vel[downIdx-1] + beta_dy_2 * Vel[downIdx-1]; // up contribution
+//        NextVel[downIdx] += alpha_dx_1 * Vel[downIdx] + beta_dx_1 * Vel[leftIdx]; // left contribution
+//        NextVel[downIdx] += beta_dx_2 * Vel[rightIdx]; // right contribution
+//    }
+//    // left
+//    for (int j = 1; j < Nyr-1; j++) {
+//        int rightIdx = j + Nyr;
+//        NextVel[j] = alpha_dx_1 * Vel[j] + alpha_dx_2 * Vel[j];
+//        NextVel[j] += beta_dx_2 * Vel[rightIdx]; // right contribution
+//        NextVel[j] += beta_dy_2 * Vel[j+1]; // down contribution
+//        NextVel[j] += beta_dy_1 * Vel[j-1] + beta_dy_2 * Vel[j-1]; // up contribution
+//    }
+//    // right
+//    for (int j = 1; j < Nyr-1; j++) {
+//        int rightIdx = Nyr*(Nxr-1)+j;
+//        int leftIdx = rightIdx - Nyr;
+//        NextVel[rightIdx] = alpha_dx_1 * Vel[rightIdx] + alpha_dx_2 * Vel[rightIdx];
+//        NextVel[rightIdx] += beta_dy_2 * Vel[rightIdx+1]; // down contribution
+//        NextVel[rightIdx] += beta_dx_2 * Vel[leftIdx] + beta_dx_1 * Vel[leftIdx]; // left contribution
+//        NextVel[rightIdx] += beta_dy_1 * Vel[rightIdx-1] + beta_dy_2 * Vel[rightIdx-1]; // up contribution
+//    }
+    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j+=blocksize) {
+            for (int k = j; k < Nyr && k < j + blocksize; k++) {
+                int curr = start + k;
+                // Update x
+                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
+                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
+                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
+                // Update y
+                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
+                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
+                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+                switch (SELECT_U) {
+                    case true:
+                        Vel_Vel = bdx * Vel[curr] * Vel[curr];
+                        Vel_Other = bdy * Vel[curr] * Other[curr];
+                        Vel_Vel_Minus_1 = (i == 0) ? 0 : bdx * Vel_iMinus[k] * Vel[curr];
+                        Vel_Other_Minus_1 = (k == 0) ? 0 : bdy * Vel[curr - 1] * Other[curr];
+                        NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                        NextVel[curr] *= dt;
+                        NextVel[curr] += Vel[curr];
+                        break;
+                    case false:
+                        Vel_Vel = bdy * Vel[curr] * Vel[curr];
+                        Vel_Other = bdx * Vel[curr] * Other[curr];
+                        Vel_Vel_Minus_1 = (k == 0) ? 0 : bdy * Vel[curr - 1] * Vel[curr];
+                        Vel_Other_Minus_1 = (i == 0) ? 0 : bdx * Vel_iMinus[k] * Other[curr];
+                        NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
+                        NextVel[curr] *= dt;
+                        NextVel[curr] += Vel[curr];
+                        break;
                 }
             }
         }
     }
-    // Update boundary conditions
-    // 4 corners
-    for (int i = 0; i < Nxr; i+=Nxr-1) {
-        for (int j = 0; j < Nyr; j+= Nyr-1) {
-            int curr = i*Nyr+j;
-            NextVel[curr] *= Vel[curr] * (alpha_dx_1 + alpha_dx_2 + alpha_dy_1 + alpha_dy_2);
-        }
-    }
-    // up
-    for (int i = 1; i < Nxr-1; i++) {
-        int upIdx = i * Nyr;
-        int leftIdx = (i-1)*Nyr;
-        int rightIdx = (i+1)*Nyr;
-        NextVel[upIdx] = alpha_dy_1 * Vel[upIdx] + alpha_dy_2 * Vel[upIdx];
-        NextVel[upIdx] += beta_dy_2 * Vel[upIdx+1]; // down contribution
-        NextVel[upIdx] += alpha_dx_1 * Vel[upIdx] + beta_dx_1 * Vel[leftIdx]; // left contribution
-        NextVel[upIdx] += beta_dx_2 * Vel[rightIdx]; // right contribution
-    }
-    // down
-    for (int i = 1; i < Nxr-1; i++) {
-        int downIdx = i * Nyr + (Nyr-1);
-        int leftIdx = downIdx - Nyr;
-        int rightIdx = downIdx + Nyr;
-        NextVel[downIdx] = alpha_dy_1 * Vel[downIdx] + alpha_dy_2 * Vel[downIdx];
-        NextVel[downIdx] += beta_dy_1 * Vel[downIdx-1] + beta_dy_2 * Vel[downIdx-1]; // up contribution
-        NextVel[downIdx] += alpha_dx_1 * Vel[downIdx] + beta_dx_1 * Vel[leftIdx]; // left contribution
-        NextVel[downIdx] += beta_dx_2 * Vel[rightIdx]; // right contribution
-    }
-    // left
-    for (int j = 1; j < Nyr-1; j++) {
-        int rightIdx = j + Nyr;
-        NextVel[j] = alpha_dx_1 * Vel[j] + alpha_dx_2 * Vel[j];
-        NextVel[j] += beta_dx_2 * Vel[rightIdx]; // right contribution
-        NextVel[j] += beta_dy_2 * Vel[j+1]; // down contribution
-        NextVel[j] += beta_dy_1 * Vel[j-1] + beta_dy_2 * Vel[j-1]; // up contribution
-    }
-    // right
-    for (int j = 1; j < Nyr-1; j++) {
-        int rightIdx = Nyr*(Nxr-1)+j;
-        int leftIdx = rightIdx - Nyr;
-        NextVel[rightIdx] = alpha_dx_1 * Vel[rightIdx] + alpha_dx_2 * Vel[rightIdx];
-        NextVel[rightIdx] += beta_dy_2 * Vel[rightIdx+1]; // down contribution
-        NextVel[rightIdx] += beta_dx_2 * Vel[leftIdx] + beta_dx_1 * Vel[leftIdx]; // left contribution
-        NextVel[rightIdx] += beta_dy_1 * Vel[rightIdx-1] + beta_dy_2 * Vel[rightIdx-1]; // up contribution
-    }
-//    for (int i = 0; i < Nxr; i++) {
-//        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-//        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-//        int start = i*Nyr;
-//        for (int j = 0; j < Nyr; j+=blocksize) {
-//            for (int k = j; k < Nyr && k < j + blocksize; k++) {
-//                int curr = start + k;
-//                // Update x
-//                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
-//                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
-//                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
-//                // Update y
-//                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
-//                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
-//                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
-//            }
-//        }
-//    }
 }
 
 void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U) {
@@ -300,7 +324,7 @@ void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, boo
     double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
-    const int blocksize = 4;
+    const int blocksize = 8;
 
     double* Vel_iMinus = nullptr;
     double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;

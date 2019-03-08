@@ -19,7 +19,7 @@ public:
     double GetE()     const { return E; }
 private:
     void NextVelocityState(double* NextVel, bool SELECT_U);
-    void SetLinearTerms(double* Vel, double* NextVel);
+    void SetLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U);
     void SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U);
     /// Burger parameters
     Model* model;
