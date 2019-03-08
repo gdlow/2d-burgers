@@ -30,7 +30,7 @@ private:
     struct {
         double* U;
         double* V;
-    } localVel;
+    } B;
 
     double E;
 

@@ -24,8 +24,8 @@ Burgers2P::Burgers2P(Model &m) {
     int NyrNxr = model->GetLocNyrNxr();
 
     /// Allocate memory to instance variables
-    localVel.U = new double[NyrNxr];
-    localVel.V = new double[NyrNxr];
+    B.U = new double[NyrNxr];
+    B.V = new double[NyrNxr];
     Vel_t = new double[NyrNxr];
 
     /// Caches
@@ -48,8 +48,8 @@ Burgers2P::Burgers2P(Model &m) {
  * */
 Burgers2P::~Burgers2P() {
     /// Delete U and V
-    delete[] localVel.U;
-    delete[] localVel.V;
+    delete[] B.U;
+    delete[] B.V;
     delete[] Vel_t;
 
     /// Delete Caches
@@ -92,8 +92,8 @@ void Burgers2P::SetInitialVelocity() {
             double x = loc_x0 + i*dx;
             double y = loc_y0 - j*dy;
             double r = pow(x*x+y*y, 0.5);
-            localVel.U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
-            localVel.V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            B.U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
+            B.V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
         }
     }
 }
@@ -111,10 +111,10 @@ void Burgers2P::SetIntegratedVelocity() {
         double* NextV = NextVelocityState(false);
 
         /// Delete current pointer and point to NextVel
-        delete[] localVel.U;
-        delete[] localVel.V;
-        localVel.U = NextU;
-        localVel.V = NextV;
+        delete[] B.U;
+        delete[] B.V;
+        B.U = NextU;
+        B.V = NextV;
         if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
@@ -140,10 +140,10 @@ void Burgers2P::WriteVelocityFile() {
     of.precision(4); // 4 s.f.
 
     /// Write U velocity
-    WriteOf(localVel.U, M, of, 'U');
+    WriteOf(B.U, M, of, 'U');
 
     /// Write V velocity
-    WriteOf(localVel.V, M, of, 'V');
+    WriteOf(B.V, M, of, 'V');
     of.close();
 
     /// Delete 2D pointer
@@ -157,7 +157,7 @@ void Burgers2P::WriteVelocityFile() {
  * @brief Calculates and sets energy of velocity field
  * */
 void Burgers2P::SetEnergy() {
-    E = CalculateEnergyState(localVel.U, localVel.V);
+    E = CalculateEnergyState(B.U, B.V);
 }
 
 /**
@@ -235,8 +235,8 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     int right = model->GetRight();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? localVel.U : localVel.V;
-    double* Other = (SELECT_U)? localVel.V : localVel.U;
+    double* Vel = (SELECT_U) ? B.U : B.V;
+    double* Other = (SELECT_U)? B.V : B.U;
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
@@ -245,14 +245,11 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     double* NextVel = new double[NyrNxr];
 
     /// Compute first & second derivatives
-    double alpha_dx_2 = model->GetAlphaDx_2();
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
     double beta_dx_2 = model->GetBetaDx_2();
-    double alpha_dy_2 = model->GetAlphaDy_2();
     double beta_dy_2 = model->GetBetaDy_2();
-    double alpha_dx_1 = model->GetAlphaDx_1();
-    double beta_dx_1 = model->GetBetaDx_1();
-    double alpha_dy_1 = model->GetAlphaDy_1();
-    double beta_dy_1 = model->GetBetaDy_1();
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
@@ -262,14 +259,11 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            // Update x
-            NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[j] :alpha_dx_1 * Vel[curr];
-            NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[j] :NextVel[curr] + alpha_dx_2 * Vel[curr];
-            NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-            // Update y
-            NextVel[curr] = (j > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
-            NextVel[curr] = (j > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
-            NextVel[curr] = (j < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+            NextVel[curr] = alpha_sum * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + beta_dx_sum * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + beta_dy_sum * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
 
@@ -280,8 +274,7 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
         if (left >= 0) {
-            NextVel[j] += beta_dx_2*leftVel[j];
-            NextVel[j] += beta_dx_1*leftVel[j];
+            NextVel[j] += beta_dx_sum*leftVel[j];
         }
         if (right >= 0) {
             NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
@@ -291,8 +284,7 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
         if (up >= 0) {
-            NextVel[i*Nyr] += beta_dy_2*upVel[i];
-            NextVel[i*Nyr] += beta_dy_1*upVel[i];
+            NextVel[i*Nyr] += beta_dy_sum*upVel[i];
         }
         if (down >= 0) {
             NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
