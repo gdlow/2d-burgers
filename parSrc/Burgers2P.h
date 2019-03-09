@@ -27,10 +27,8 @@ private:
 
     /// Burger parameters
     Model* model;
-    struct {
-        double* U;
-        double* V;
-    } B;
+    double* U;
+    double* V;
 
     double E;
 
