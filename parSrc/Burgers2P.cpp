@@ -253,17 +253,38 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
-    for (int i = 0; i < Nxr; i++) {
-        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-        int start = i*Nyr;
-        for (int j = 0; j < Nyr; j++) {
-            int curr = start + j;
-            NextVel[curr] = alpha_sum * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + beta_dx_sum * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + beta_dy_sum * Vel[curr-1] : NextVel[curr];
-            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+    switch (SELECT_U) {
+        case true: {
+            for (int i = 0; i < Nxr; i++) {
+                if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+                if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+                int start = i*Nyr;
+                for (int j = 0; j < Nyr; j++) {
+                    int curr = start + j;
+                    NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
+                    NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+                    NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+                    NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+                    NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+                }
+            }
+            break;
+        }
+        case false: {
+            for (int i = 0; i < Nxr; i++) {
+                if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+                if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+                int start = i*Nyr;
+                for (int j = 0; j < Nyr; j++) {
+                    int curr = start + j;
+                    NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
+                    NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+                    NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+                    NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+                    NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+                }
+            }
+            break;
         }
     }
 
@@ -271,57 +292,43 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     /// MPI wait for all comms to finish
     MPI_Waitall(8, reqs, stats);
 
-    /// Fix left and right boundaries
-    for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) NextVel[j] += beta_dx_sum*leftVel[j];
-        if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-    }
-
-    /// Fix up and down boundaries
-    for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) NextVel[i*Nyr] += beta_dy_sum*upVel[i];
-        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-    }
-
-    /// Addition through non-linear terms
-    /// Matrix addition through all terms
-    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
-    if (SELECT_U) {
-        for (int i = 0; i < Nxr; i++) {
-            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-            int start = i*Nyr;
+    switch (SELECT_U) {
+        case true: {
+            /// Fix left and right boundaries
             for (int j = 0; j < Nyr; j++) {
-                int curr = start+j;
-                Vel_Vel = bdx * Vel[curr] * Vel[curr];
-                Vel_Other = bdy * Vel[curr] * Other[curr];
-                Vel_Vel_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Vel[curr];
-                Vel_Other_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Other[curr];
-                if (i == 0 && left >= 0) Vel_Vel_Minus_1 = bdx * leftVel[curr] * Vel[curr];
-                if (j == 0 && up >= 0) Vel_Other_Minus_1 = bdy * upVel[i] * Other[curr];
-                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-                NextVel[curr] *= dt;
-                NextVel[curr] += Vel[curr];
+                if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Vel[j]) * leftVel[j];
+                if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
             }
+
+            /// Fix up and down boundaries
+            for (int i = 0; i < Nxr; i++) {
+                if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Other[i*Nyr]) * upVel[i];
+                if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+            }
+            break;
+        }
+        case false: {
+            /// Fix left and right boundaries
+            for (int j = 0; j < Nyr; j++) {
+                if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Other[j])*leftVel[j];
+                if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+            }
+
+            /// Fix up and down boundaries
+            for (int i = 0; i < Nxr; i++) {
+                if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Vel[i*Nyr])*upVel[i];
+                if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+            }
+            break;
         }
     }
-    else {
-        for (int i = 0; i < Nxr; i++) {
-            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-            int start = i*Nyr;
-            for (int j = 0; j < Nyr; j++) {
-                int curr = start + j;
-                Vel_Vel = bdy * Vel[curr] * Vel[curr];
-                Vel_Other = bdx * Vel[curr] * Other[curr];
-                Vel_Vel_Minus_1 = (j == 0)? 0 : bdy * Vel[curr-1] * Vel[curr];
-                Vel_Other_Minus_1 = (i == 0)? 0 : bdx * Vel_iMinus[j] * Other[curr];
-                if (i == 0 && left >= 0) Vel_Other_Minus_1 = bdx * leftVel[curr] * Other[curr];
-                if (j == 0 && up >= 0) Vel_Vel_Minus_1 = bdy * upVel[i] * Vel[curr];
-                NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-                NextVel[curr] *= dt;
-                NextVel[curr] += Vel[curr];
-            }
-        }
+
+    // *dt && daxpy
+    for (int i = 0; i < NyrNxr; i++) {
+        NextVel[i] *= dt;
+        NextVel[i] += Vel[i];
     }
+
     return NextVel;
 }
 
