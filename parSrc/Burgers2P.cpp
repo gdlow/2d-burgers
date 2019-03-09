@@ -26,7 +26,6 @@ Burgers2P::Burgers2P(Model &m) {
     /// Allocate memory to instance variables
     B.U = new double[NyrNxr];
     B.V = new double[NyrNxr];
-    Vel_t = new double[NyrNxr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -50,7 +49,6 @@ Burgers2P::~Burgers2P() {
     /// Delete U and V
     delete[] B.U;
     delete[] B.V;
-    delete[] Vel_t;
 
     /// Delete Caches
     delete[] upVel;
