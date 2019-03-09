@@ -322,8 +322,21 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     }
 
     // *dt && daxpy
-    for (int i = 0; i < NyrNxr; i++) {
+    int i, j;
+    int unrollfactor = 7;
+    int maxval = NyrNxr - unrollfactor;
+    for (i = 0; i < maxval; i+= unrollfactor+1) {
         NextVel[i] *= dt;
+        NextVel[i+1] *= dt;
+        NextVel[i+2] *= dt;
+        NextVel[i+3] *= dt;
+        NextVel[i+4] *= dt;
+        NextVel[i+5] *= dt;
+        NextVel[i+6] *= dt;
+        NextVel[i+7] *= dt;
+    }
+    for (j = i; j < NyrNxr; j++) {
+        NextVel[j] *= dt;
     }
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 
