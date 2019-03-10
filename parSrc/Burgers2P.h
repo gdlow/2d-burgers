@@ -19,7 +19,8 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    inline double* NextVelocityState(bool SELECT_U);
+    double* GetNextU();
+    double* GetNextV();
     void SetCaches(double* Vel);
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);

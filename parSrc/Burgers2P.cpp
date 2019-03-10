@@ -105,8 +105,8 @@ void Burgers2P::SetIntegratedVelocity() {
 
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        double* NextU = NextVelocityState(true);
-        double* NextV = NextVelocityState(false);
+        double* NextU = GetNextU();
+        double* NextV = GetNextV();
 
         /// Delete current pointer and point to NextVel
         delete[] U;
@@ -217,7 +217,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @param Vi V velocity per timestamp
  * @param SELECT_U true if the computation is for U
  * */
-inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
+double* Burgers2P::GetNextU() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -233,8 +233,8 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     int right = model->GetRight();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? U : V;
-    double* Other = (SELECT_U)? V : U;
+    double* Vel = U;
+    double* Other = V;
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
@@ -251,38 +251,17 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
-    switch (SELECT_U) {
-        case true: {
-            for (int i = 0; i < Nxr; i++) {
-                if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-                if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-                int start = i*Nyr;
-                for (int j = 0; j < Nyr; j++) {
-                    int curr = start + j;
-                    NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
-                    NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-                    NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
-                    NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-                    NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
-                }
-            }
-            break;
-        }
-        case false: {
-            for (int i = 0; i < Nxr; i++) {
-                if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-                if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-                int start = i*Nyr;
-                for (int j = 0; j < Nyr; j++) {
-                    int curr = start + j;
-                    NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
-                    NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-                    NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
-                    NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-                    NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
-                }
-            }
-            break;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
 
@@ -290,35 +269,107 @@ inline double* Burgers2P::NextVelocityState(bool SELECT_U) {
     /// MPI wait for all comms to finish
     MPI_Waitall(8, reqs, stats);
 
-    switch (SELECT_U) {
-        case true: {
-            /// Fix left and right boundaries
-            for (int j = 0; j < Nyr; j++) {
-                if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Vel[j]) * leftVel[j];
-                if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-            }
+    for (int j = 0; j < Nyr; j++) {
+        if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Vel[j]) * leftVel[j];
+        if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+    }
 
-            /// Fix up and down boundaries
-            for (int i = 0; i < Nxr; i++) {
-                if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Other[i*Nyr]) * upVel[i];
-                if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-            }
-            break;
-        }
-        case false: {
-            /// Fix left and right boundaries
-            for (int j = 0; j < Nyr; j++) {
-                if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Other[j])*leftVel[j];
-                if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-            }
+    /// Fix up and down boundaries
+    for (int i = 0; i < Nxr; i++) {
+        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Other[i*Nyr]) * upVel[i];
+        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+    }
 
-            /// Fix up and down boundaries
-            for (int i = 0; i < Nxr; i++) {
-                if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Vel[i*Nyr])*upVel[i];
-                if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-            }
-            break;
+    // *dt && daxpy
+    int i, j;
+    int unrollfactor = 7;
+    int maxval = NyrNxr - unrollfactor;
+    for (i = 0; i < maxval; i+= unrollfactor+1) {
+        NextVel[i] *= dt;
+        NextVel[i+1] *= dt;
+        NextVel[i+2] *= dt;
+        NextVel[i+3] *= dt;
+        NextVel[i+4] *= dt;
+        NextVel[i+5] *= dt;
+        NextVel[i+6] *= dt;
+        NextVel[i+7] *= dt;
+    }
+    for (j = i; j < NyrNxr; j++) {
+        NextVel[j] *= dt;
+    }
+    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
+
+    return NextVel;
+}
+
+/**
+ * @brief Private helper function that computes and returns next velocity state based on previous inputs
+ * @param Ui U velocity per timestamp
+ * @param Vi V velocity per timestamp
+ * @param SELECT_U true if the computation is for U
+ * */
+double* Burgers2P::GetNextV() {
+    /// Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+    int NyrNxr = model->GetLocNyrNxr();
+    double dt = model->GetDt();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+
+    /// Get ranks
+    int up = model->GetUp();
+    int down = model->GetDown();
+    int left = model->GetLeft();
+    int right = model->GetRight();
+
+    /// Set aliases for computation
+    double* Vel = V;
+    double* Other = U;
+
+    /// Set caches for Vel (Non-blocking)
+    SetCaches(Vel);
+
+    /// Generate NextVel
+    double* NextVel = new double[NyrNxr];
+
+    /// Compute first & second derivatives
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+
+    double* Vel_iMinus = nullptr;
+    double* Vel_iPlus = nullptr;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
+    }
+
+    /// Update bounds here
+    /// MPI wait for all comms to finish
+    MPI_Waitall(8, reqs, stats);
+
+    /// Fix left and right boundaries
+    for (int j = 0; j < Nyr; j++) {
+        if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Other[j])*leftVel[j];
+        if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+    }
+
+    /// Fix up and down boundaries
+    for (int i = 0; i < Nxr; i++) {
+        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Vel[i*Nyr])*upVel[i];
+        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
     // *dt && daxpy
