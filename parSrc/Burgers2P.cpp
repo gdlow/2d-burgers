@@ -35,6 +35,10 @@ Burgers2P::Burgers2P(Model &m) {
     myLeftVel = new double[Nyr];
     myRightVel = new double[Nyr];
 
+    /// Pointers to non-linear pre-calculations
+    double* nonLinVel = new double[NyrNxr];
+    double* nonLinOther = new double[NyrNxr];
+
     /// Generate new MPI request and stats
     reqs = new MPI_Request[8];
     stats = new MPI_Status[8];
@@ -57,6 +61,10 @@ Burgers2P::~Burgers2P() {
     delete[] myDownVel;
     delete[] myLeftVel;
     delete[] myRightVel;
+
+    /// Delete pointers to non-linear pre-calculations
+    delete[] nonLinVel;
+    delete[] nonLinOther;
 
     /// Deallocate memory of MPI requests and stats
     delete[] stats;
@@ -219,6 +227,11 @@ double* Burgers2P::GetNextU() {
     double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
 
     /// Get ranks
     int up = model->GetUp();
@@ -236,13 +249,17 @@ double* Burgers2P::GetNextU() {
     /// Generate NextVel
     double* NextVel = new double[NyrNxr];
 
-    /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = model->GetAlpha_Sum();
-    double beta_dx_sum = model->GetBetaDx_Sum();
-    double beta_dy_sum = model->GetBetaDy_Sum();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double beta_dy_2 = model->GetBetaDy_2();
+    /// Compute non-linear pre-calculations
+    for (int i = 0; i < Nxr; i++) {
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            nonLinVel[curr] = bdx * Vel[curr];
+            nonLinOther[curr] = bdy * Other[curr];
+        }
+    }
 
+    /// Compute first, second derivatives, & non-linear terms
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
     for (int i = 0; i < Nxr; i++) {
@@ -251,9 +268,9 @@ double* Burgers2P::GetNextU() {
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel[curr] - nonLinOther[curr]) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinVel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinOther[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
             NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
@@ -264,13 +281,13 @@ double* Burgers2P::GetNextU() {
     MPI_Waitall(8, reqs, stats);
 
     for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Vel[j]) * leftVel[j];
+        if (left >= 0) NextVel[j] += (beta_dx_sum + nonLinVel[j]) * leftVel[j];
         if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Other[i*Nyr]) * upVel[i];
+        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + nonLinOther[i*Nyr]) * upVel[i];
         if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
@@ -307,6 +324,11 @@ double* Burgers2P::GetNextV() {
     double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
 
     /// Get ranks
     int up = model->GetUp();
@@ -324,13 +346,17 @@ double* Burgers2P::GetNextV() {
     /// Generate NextVel
     double* NextVel = new double[NyrNxr];
 
-    /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = model->GetAlpha_Sum();
-    double beta_dx_sum = model->GetBetaDx_Sum();
-    double beta_dy_sum = model->GetBetaDy_Sum();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double beta_dy_2 = model->GetBetaDy_2();
+    /// Compute non-linear pre-calculations
+    for (int i = 0; i < Nxr; i++) {
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            nonLinVel[curr] = bdy * Vel[curr];
+            nonLinOther[curr] = bdx * Other[curr];
+        }
+    }
 
+    /// Compute first, second derivatives, & non-linear terms
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
     for (int i = 0; i < Nxr; i++) {
@@ -339,9 +365,9 @@ double* Burgers2P::GetNextV() {
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel[curr] - nonLinOther[curr]) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinOther[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinVel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
             NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
@@ -353,14 +379,15 @@ double* Burgers2P::GetNextV() {
 
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Other[j])*leftVel[j];
+        if (left >= 0) NextVel[j] += (beta_dx_sum + nonLinOther[j])*leftVel[j];
         if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Vel[i*Nyr])*upVel[i];
-        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+        int upidx = i*Nyr;
+        if (up >= 0) NextVel[upidx] += (beta_dy_sum + nonLinVel[upidx])*upVel[i];
+        if (down >= 0) NextVel[upidx+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
     /// Loop unrolling to improve cache performance

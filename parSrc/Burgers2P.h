@@ -43,6 +43,10 @@ private:
     double* myLeftVel;
     double* myRightVel;
 
+    /// Pointers to non-linear pre-calculations
+    double* nonLinVel;
+    double* nonLinOther;
+
     /// MPI Requests and Statuses
     MPI_Request* reqs;
     MPI_Status* stats;
