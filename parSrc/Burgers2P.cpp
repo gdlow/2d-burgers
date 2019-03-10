@@ -245,15 +245,17 @@ double* Burgers2P::GetNextU() {
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
+    double nonLinVel, nonLinOther;
     for (int i = 0; i < Nxr; i++) {
         if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
         if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            nonLinVel = bdx*Vel[curr]; nonLinOther = bdy*Other[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinVel + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinOther + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
             NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
@@ -333,15 +335,17 @@ double* Burgers2P::GetNextV() {
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
+    double nonLinVel, nonLinOther;
     for (int i = 0; i < Nxr; i++) {
         if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
         if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            nonLinVel = bdy * Vel[curr]; nonLinOther = bdx * Other[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinOther + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinVel + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
             NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
