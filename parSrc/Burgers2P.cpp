@@ -216,9 +216,8 @@ double* Burgers2P::GetNextU() {
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
     int NyrNxr = model->GetLocNyrNxr();
-    double dt = model->GetDt();
-    double bdx = dt * model->GetBDx();
-    double bdy = dt * model->GetBDy();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
 
     /// Get ranks
     int up = model->GetUp();
@@ -237,11 +236,11 @@ double* Burgers2P::GetNextU() {
     double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = dt * model->GetAlpha_Sum();
-    double beta_dx_sum = dt * model->GetBetaDx_Sum();
-    double beta_dy_sum = dt * model->GetBetaDy_Sum();
-    double beta_dx_2 = dt * model->GetBetaDx_2();
-    double beta_dy_2 = dt * model->GetBetaDy_2();
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 =  model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
@@ -289,9 +288,8 @@ double* Burgers2P::GetNextV() {
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
     int NyrNxr = model->GetLocNyrNxr();
-    double dt = model->GetDt();
-    double bdx = dt * model->GetBDx();
-    double bdy = dt * model->GetBDy();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
 
     /// Get ranks
     int up = model->GetUp();
@@ -310,11 +308,11 @@ double* Burgers2P::GetNextV() {
     double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = dt * model->GetAlpha_Sum();
-    double beta_dx_sum = dt * model->GetBetaDx_Sum();
-    double beta_dy_sum = dt * model->GetBetaDy_Sum();
-    double beta_dx_2 = dt * model->GetBetaDx_2();
-    double beta_dy_2 = dt * model->GetBetaDy_2();
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;

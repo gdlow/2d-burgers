@@ -122,6 +122,14 @@ void Model::SetNumerics() {
     alpha_sum = alpha_dx_1 + alpha_dx_2 + alpha_dy_1 + alpha_dy_2;
     beta_dx_sum = beta_dx_1 + beta_dx_2;
     beta_dy_sum = beta_dy_1 + beta_dy_2;
+    /// multiply by dt for pre-computational purposes
+    bdx *= dt;
+    bdy *= dt;
+    alpha_sum *= dt;
+    beta_dx_sum *= dt;
+    beta_dy_sum *= dt;
+    beta_dx_2 *= dt;
+    beta_dy_2 *= dt;
 }
 
 /**
