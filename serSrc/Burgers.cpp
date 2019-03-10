@@ -24,7 +24,8 @@ Burgers::Burgers(Model &m) {
     /// Allocate memory to instance variables
     U = new double[Nyr*Nxr];
     V = new double[Nyr*Nxr];
-
+    NextU = new double[Nyr*Nxr];
+    NextV = new double[Nyr*Nxr];
 }
 
 /**
@@ -34,7 +35,8 @@ Burgers::~Burgers() {
     /// Delete U and V
     delete[] U;
     delete[] V;
-
+    delete[] NextU;
+    delete[] NextV;
     /// model is not dynamically alloc
 }
 
@@ -74,16 +76,18 @@ void Burgers::SetInitialVelocity() {
 void Burgers::SetIntegratedVelocity() {
     /// Get model parameters
     int Nt = model->GetNt();
-
+    double* temp = nullptr;
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        double* NextU = GetNextU();
-        double* NextV = GetNextV();
-        /// Delete current pointer and point to NextVel
-        delete[] U;
-        delete[] V;
-        U = NextU;
-        V = NextV;
+        GetNextU(NextU);
+         GetNextV(NextV);
+        temp = NextU;
+        NextU = U;
+        U = temp;
+
+        temp = NextV;
+        NextV = V;
+        V = temp;
         cout << "step: " << k << "\n";
     }
 }
@@ -172,7 +176,7 @@ void Burgers::SetEnergy() {
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
-double* Burgers::GetNextU() {
+void Burgers::GetNextU(double* NextVel) {
     /// Get model parameters
     int Nyr = model->GetNy()-2;
     int Nxr = model->GetNx()-2;
@@ -183,9 +187,6 @@ double* Burgers::GetNextU() {
     /// Set aliases for computation
     double* Vel = U;
     double* Other = V;
-
-    /// Generate NextVel
-    double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
@@ -213,14 +214,12 @@ double* Burgers::GetNextU() {
     }
 
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
-
-    return NextVel;
 }
 
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
-double* Burgers::GetNextV() {
+void Burgers::GetNextV(double* NextVel) {
     /// Get model parameters
     int Nyr = model->GetNy()-2;
     int Nxr = model->GetNx()-2;
@@ -231,9 +230,6 @@ double* Burgers::GetNextV() {
     /// Set aliases for computation
     double* Vel = V;
     double* Other = U;
-
-    /// Generate NextVel
-    double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
@@ -261,8 +257,6 @@ double* Burgers::GetNextV() {
     }
 
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
-
-    return NextVel;
 }
 
 /**

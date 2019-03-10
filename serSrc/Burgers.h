@@ -18,14 +18,16 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    double* GetNextU();
-    double* GetNextV();
+    void GetNextU(double* NextVel);
+    void GetNextV(double* NextVel);
     void wrap(double* A, int Nyr, int Nxr, double** res);
 
     /// Burger parameters
     Model* model;
     double* U;
     double* V;
+    double* NextU;
+    double* NextV;
     double E;
 };
 #endif //CLASS_BURGERS
