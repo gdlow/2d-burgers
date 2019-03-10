@@ -177,7 +177,6 @@ double* Burgers::GetNextU() {
     int Nyr = model->GetNy()-2;
     int Nxr = model->GetNx()-2;
     int NyrNxr = Nyr*Nxr;
-    double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
 
@@ -197,37 +196,22 @@ double* Burgers::GetNextU() {
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
+    double nonLinVel, nonLinOther;
     for (int i = 0; i < Nxr; i++) {
         if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
         if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            nonLinVel = bdx*Vel[curr]; nonLinOther = bdy*Other[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinVel + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinOther + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
             NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
 
-    /// Loop unrolling to improve cache performance
-    int i, j;
-    int unrollfactor = 7;
-    int maxval = NyrNxr - unrollfactor;
-    for (i = 0; i < maxval; i+= unrollfactor+1) {
-        NextVel[i] *= dt;
-        NextVel[i+1] *= dt;
-        NextVel[i+2] *= dt;
-        NextVel[i+3] *= dt;
-        NextVel[i+4] *= dt;
-        NextVel[i+5] *= dt;
-        NextVel[i+6] *= dt;
-        NextVel[i+7] *= dt;
-    }
-    for (j = i; j < NyrNxr; j++) {
-        NextVel[j] *= dt;
-    }
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 
     return NextVel;
@@ -241,7 +225,6 @@ double* Burgers::GetNextV() {
     int Nyr = model->GetNy()-2;
     int Nxr = model->GetNx()-2;
     int NyrNxr = Nyr*Nxr;
-    double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
 
@@ -261,37 +244,22 @@ double* Burgers::GetNextV() {
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
+    double nonLinVel, nonLinOther;
     for (int i = 0; i < Nxr; i++) {
         if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
         if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            nonLinVel = bdy*Vel[curr]; nonLinOther = bdx*Other[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinOther + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinVel + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
             NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
             NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
 
-    /// Loop unrolling to improve cache performance
-    int i, j;
-    int unrollfactor = 7;
-    int maxval = NyrNxr - unrollfactor;
-    for (i = 0; i < maxval; i+= unrollfactor+1) {
-        NextVel[i] *= dt;
-        NextVel[i+1] *= dt;
-        NextVel[i+2] *= dt;
-        NextVel[i+3] *= dt;
-        NextVel[i+4] *= dt;
-        NextVel[i+5] *= dt;
-        NextVel[i+6] *= dt;
-        NextVel[i+7] *= dt;
-    }
-    for (j = i; j < NyrNxr; j++) {
-        NextVel[j] *= dt;
-    }
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 
     return NextVel;
