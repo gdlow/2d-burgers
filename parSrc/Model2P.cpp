@@ -44,7 +44,7 @@ Model::~Model() {
 
 /**
  * @brief Parses parameters from command line into program
- * @brief Throws an exception if invalid number of arguments are supplied
+ * Throws an exception if invalid number of arguments are supplied
  * */
 void Model::ParseParameters(int argc, char **argv) {
     if (argc == 10) {
@@ -110,7 +110,7 @@ void Model::SetNumerics() {
     /// b/dx and b/dy saves computation time in the future
     bdx = b/dx;
     bdy = b/dy;
-    /// alpha and beta used for BLAS routines
+    /// constants used in SetIntegratedVelocity()
     double alpha_dx_2 = (-2.0*c)/pow(dx,2.0);
     double alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
     double alpha_dx_1 = -ax/dx;

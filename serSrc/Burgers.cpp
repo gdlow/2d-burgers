@@ -2,7 +2,6 @@
 #include <fstream>
 #include <iomanip>
 #include "BLAS_Wrapper.h"
-#include "Helpers.h"
 #include "Burgers.h"
 #include <iostream>
 using namespace std;
@@ -78,8 +77,8 @@ void Burgers::SetIntegratedVelocity() {
 
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        double* NextU = NextVelocityState(true);
-        double* NextV = NextVelocityState(false);
+        double* NextU = GetNextU();
+        double* NextV = GetNextV();
         /// Delete current pointer and point to NextVel
         delete[] U;
         delete[] V;
@@ -169,136 +168,146 @@ void Burgers::SetEnergy() {
     E = 0.5 * (ddotU + ddotV) * dx*dy;
 }
 
+
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * @param Ui U velocity per timestamp
- * @param Vi V velocity per timestamp
- * @param SELECT_U true if the computation is for U
  * */
-double* Burgers::NextVelocityState(bool SELECT_U) {
+double* Burgers::GetNextU() {
     /// Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-
-    /// Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
+    int Nyr = model->GetNy()-2;
+    int Nxr = model->GetNx()-2;
+    int NyrNxr = Nyr*Nxr;
+    double dt = model->GetDt();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
 
     /// Set aliases for computation
-    double* Vel = (SELECT_U) ? U : V;
-    double* Other = (SELECT_U)? V : U;
+    double* Vel = U;
+    double* Other = V;
 
     /// Generate NextVel
-    double* NextVel = new double[Nyr*Nxr];
+    double* NextVel = new double[NyrNxr];
 
-    SetLinearTerms(Vel, NextVel);
-    SetNonLinearTerms(Vel, Other, NextVel, SELECT_U);
+    /// Compute first, second derivatives, & non-linear terms
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+
+    double* Vel_iMinus = nullptr;
+    double* Vel_iPlus = nullptr;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            NextVel[curr] = (alpha_sum - bdx * Vel[curr] - bdy * Other[curr]) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Vel[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Other[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+        }
+    }
+
+    /// Loop unrolling to improve cache performance
+    int i, j;
+    int unrollfactor = 7;
+    int maxval = NyrNxr - unrollfactor;
+    for (i = 0; i < maxval; i+= unrollfactor+1) {
+        NextVel[i] *= dt;
+        NextVel[i+1] *= dt;
+        NextVel[i+2] *= dt;
+        NextVel[i+3] *= dt;
+        NextVel[i+4] *= dt;
+        NextVel[i+5] *= dt;
+        NextVel[i+6] *= dt;
+        NextVel[i+7] *= dt;
+    }
+    for (j = i; j < NyrNxr; j++) {
+        NextVel[j] *= dt;
+    }
+    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 
     return NextVel;
 }
 
-void Burgers::SetLinearTerms(double* Vel, double* NextVel) {
-    int Nxr = model->GetNx() - 2;
-    int Nyr = model->GetNy() - 2;
-    double alpha_dx_2 = model->GetAlphaDx_2();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double alpha_dy_2 = model->GetAlphaDy_2();
-    double beta_dy_2 = model->GetBetaDy_2();
-    double alpha_dx_1 = model->GetAlphaDx_1();
-    double beta_dx_1 = model->GetBetaDx_1();
-    double alpha_dy_1 = model->GetAlphaDy_1();
-    double beta_dy_1 = model->GetBetaDy_1();
-
-    // loop blocking + pre-fetching previous & next column from memory
-    const int blocksize = 8;
-    double* Vel_iMinus = nullptr;
-    double* Vel_iPlus = nullptr;
-    double* VelPtr = nullptr;
-    double* NextVelPtr = nullptr;
-    int i, j, i2, j2, ii2, jj2;
-    for (i = 0; i < Nxr; i+=blocksize) {
-        for (j = 0; j < Nyr; j+=blocksize) {
-            for (i2 = 0, ii2 = i+i2, VelPtr = &Vel[i*Nyr+j], NextVelPtr = &NextVel[i*Nyr+j]; ii2 < Nxr && i2 < blocksize; ++i2, ++ii2, VelPtr += Nyr, NextVelPtr+=Nyr) {
-                if (ii2 > 0) Vel_iMinus = &Vel[(ii2-1)*Nyr+j];
-                if (ii2 < Nxr-1) Vel_iPlus = &Vel[(ii2+1)*Nyr+j];
-                for (j2 = 0, jj2 = j+j2; jj2 < Nyr && j2 < blocksize; ++j2, ++jj2) {
-                    // Update x
-                    NextVelPtr[j2] = (ii2 > 0) ? alpha_dx_1 * VelPtr[j2] + beta_dx_1 * Vel_iMinus[j2] :alpha_dx_1 * VelPtr[j2];
-                    NextVelPtr[j2] = (ii2 > 0) ? NextVelPtr[j2] + alpha_dx_2 * VelPtr[j2] + beta_dx_2 * Vel_iMinus[j2] :NextVelPtr[j2] + alpha_dx_2 * VelPtr[j2];
-                    NextVelPtr[j2] = (ii2 < Nxr-1) ? NextVelPtr[j2] + beta_dx_2 * Vel_iPlus[j2] : NextVelPtr[j2];
-                    // Update y
-                    NextVelPtr[j2] = (jj2 > 0) ? NextVelPtr[j2] + alpha_dy_1 * VelPtr[j2] + beta_dy_1 * VelPtr[j2-1] : NextVelPtr[j2] + alpha_dy_1 * VelPtr[j2];
-                    NextVelPtr[j2] = (jj2 > 0) ? NextVelPtr[j2] + alpha_dy_2 * VelPtr[j2] + beta_dy_2 * VelPtr[j2-1] : NextVelPtr[j2] + alpha_dy_2 * VelPtr[j2];
-                    NextVelPtr[j2] = (jj2 < Nyr-1) ? NextVelPtr[j2] + beta_dy_2 * VelPtr[j2+1] : NextVelPtr[j2];
-                }
-            }
-        }
-    }
-//    for (int i = 0; i < Nxr; i++) {
-//        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-//        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-//        int start = i*Nyr;
-//        for (int j = 0; j < Nyr; j+=blocksize) {
-//            for (int k = j; k < Nyr && k < j + blocksize; k++) {
-//                int curr = start + k;
-//                // Update x
-//                NextVel[curr] = (i > 0) ? alpha_dx_1 * Vel[curr] + beta_dx_1 * Vel_iMinus[k] :alpha_dx_1 * Vel[curr];
-//                NextVel[curr] = (i > 0) ? NextVel[curr] + alpha_dx_2 * Vel[curr] + beta_dx_2 * Vel_iMinus[k] :NextVel[curr] + alpha_dx_2 * Vel[curr];
-//                NextVel[curr] = (i < Nxr-1) ? NextVel[curr] + beta_dx_2 * Vel_iPlus[k] : NextVel[curr];
-//                // Update y
-//                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_1 * Vel[curr] + beta_dy_1 * Vel[curr-1] : NextVel[curr] + alpha_dy_1 * Vel[curr];
-//                NextVel[curr] = (k > 0) ? NextVel[curr] + alpha_dy_2 * Vel[curr] + beta_dy_2 * Vel[curr-1] : NextVel[curr] + alpha_dy_2 * Vel[curr];
-//                NextVel[curr] = (k < Nyr-1) ? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
-//            }
-//        }
-//    }
-}
-
-void Burgers::SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U) {
+/**
+ * @brief Private helper function that computes and returns next velocity state based on previous inputs
+ * */
+double* Burgers::GetNextV() {
     /// Get model parameters
-    int Nyr = model->GetNy() - 2;
-    int Nxr = model->GetNx() - 2;
+    int Nyr = model->GetNy()-2;
+    int Nxr = model->GetNx()-2;
+    int NyrNxr = Nyr*Nxr;
     double dt = model->GetDt();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
-    const int blocksize = 4;
+
+    /// Set aliases for computation
+    double* Vel = V;
+    double* Other = U;
+
+    /// Generate NextVel
+    double* NextVel = new double[NyrNxr];
+
+    /// Compute first, second derivatives, & non-linear terms
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
 
     double* Vel_iMinus = nullptr;
-    double Vel_Vel, Vel_Other, Vel_Vel_Minus_1, Vel_Other_Minus_1;
-    if (SELECT_U) {
-        for (int i = 0; i < Nxr; i++) {
-            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-            int start = i*Nyr;
-            for (int j = 0; j < Nyr; j+=blocksize) {
-                for (int k = j; k < Nyr && k < j + blocksize; k++) {
-                    int curr = start + k;
-                    Vel_Vel = bdx * Vel[curr] * Vel[curr];
-                    Vel_Other = bdy * Vel[curr] * Other[curr];
-                    Vel_Vel_Minus_1 = (i == 0) ? 0 : bdx * Vel_iMinus[k] * Vel[curr];
-                    Vel_Other_Minus_1 = (k == 0) ? 0 : bdy * Vel[curr - 1] * Other[curr];
-                    NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-                    NextVel[curr] *= dt;
-                    NextVel[curr] += Vel[curr];
-                }
-            }
+    double* Vel_iPlus = nullptr;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            NextVel[curr] = (alpha_sum - bdy * Vel[curr] - bdx * Other[curr]) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (bdx * Other[curr] + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (bdy * Vel[curr] + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
-    else {
-        for (int i = 0; i < Nxr; i++) {
-            if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-            int start = i*Nyr;
-            for (int j = 0; j < Nyr; j+=blocksize) {
-                for (int k = j; k < Nyr && k < j + blocksize; k++) {
-                    int curr = start + k;
-                    Vel_Vel = bdy * Vel[curr] * Vel[curr];
-                    Vel_Other = bdx * Vel[curr] * Other[curr];
-                    Vel_Vel_Minus_1 = (k == 0) ? 0 : bdy * Vel[curr - 1] * Vel[curr];
-                    Vel_Other_Minus_1 = (i == 0) ? 0 : bdx * Vel_iMinus[k] * Other[curr];
-                    NextVel[curr] -= (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-                    NextVel[curr] *= dt;
-                    NextVel[curr] += Vel[curr];
-                }
-            }
-        }
+
+    /// Loop unrolling to improve cache performance
+    int i, j;
+    int unrollfactor = 7;
+    int maxval = NyrNxr - unrollfactor;
+    for (i = 0; i < maxval; i+= unrollfactor+1) {
+        NextVel[i] *= dt;
+        NextVel[i+1] *= dt;
+        NextVel[i+2] *= dt;
+        NextVel[i+3] *= dt;
+        NextVel[i+4] *= dt;
+        NextVel[i+5] *= dt;
+        NextVel[i+6] *= dt;
+        NextVel[i+7] *= dt;
+    }
+    for (j = i; j < NyrNxr; j++) {
+        NextVel[j] *= dt;
+    }
+    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
+
+    return NextVel;
+}
+
+/**
+ * @brief Wraps a column-major 1D pointer into a pre-allocated row-major 2D pointer
+ * @param A 1D pointer in column-major format
+ * @param Nxr Nxr
+ * @param Nyr Nyr
+ * @param res 2D pointer pre-allocated with memory
+ * */
+void Burgers::wrap(double* A, int Nyr, int Nxr, double** res) {
+    for (int i = 0; i < Nyr*Nxr; i++) {
+        int col = i / Nyr; // divisor result
+        int row = i % Nyr; // remainder after division
+        res[row][col] = A[i];
     }
 }

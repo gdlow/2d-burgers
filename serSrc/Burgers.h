@@ -18,9 +18,10 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    double* NextVelocityState(bool SELECT_U);
-    void SetLinearTerms(double* Vel, double* NextVel);
-    void SetNonLinearTerms(double* Vel, double* Other, double* NextVel, bool SELECT_U);
+    double* GetNextU();
+    double* GetNextV();
+    void wrap(double* A, int Nyr, int Nxr, double** res);
+
     /// Burger parameters
     Model* model;
     double* U;

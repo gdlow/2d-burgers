@@ -1,17 +1,15 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <mpi.h>
 #include "BLAS_Wrapper.h"
-#include "Helpers.h"
 #include "Burgers2P.h"
 
 using namespace std;
 
 /**
  * @brief Public Constructor: Accepts a Model instance reference as input
- * @brief Allocates memory to all other instance variables
+ * Allocates memory to all other instance variables
  * @param &m reference to Model instance
  * */
 Burgers2P::Burgers2P(Model &m) {
@@ -113,7 +111,6 @@ void Burgers2P::SetIntegratedVelocity() {
         delete[] V;
         U = NextU;
         V = NextV;
-        if (model->GetRank() == 0) cout << "step: " << k << "\n";
     }
 }
 
@@ -213,9 +210,6 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
 
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * @param Ui U velocity per timestamp
- * @param Vi V velocity per timestamp
- * @param SELECT_U true if the computation is for U
  * */
 double* Burgers2P::GetNextU() {
     /// Get model parameters
@@ -242,7 +236,7 @@ double* Burgers2P::GetNextU() {
     /// Generate NextVel
     double* NextVel = new double[NyrNxr];
 
-    /// Compute first & second derivatives
+    /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
     double beta_dx_sum = model->GetBetaDx_Sum();
     double beta_dy_sum = model->GetBetaDy_Sum();
@@ -280,7 +274,7 @@ double* Burgers2P::GetNextU() {
         if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
-    // *dt && daxpy
+    /// Loop unrolling to improve cache performance
     int i, j;
     int unrollfactor = 7;
     int maxval = NyrNxr - unrollfactor;
@@ -304,9 +298,6 @@ double* Burgers2P::GetNextU() {
 
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * @param Ui U velocity per timestamp
- * @param Vi V velocity per timestamp
- * @param SELECT_U true if the computation is for U
  * */
 double* Burgers2P::GetNextV() {
     /// Get model parameters
@@ -333,7 +324,7 @@ double* Burgers2P::GetNextV() {
     /// Generate NextVel
     double* NextVel = new double[NyrNxr];
 
-    /// Compute first & second derivatives
+    /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
     double beta_dx_sum = model->GetBetaDx_Sum();
     double beta_dy_sum = model->GetBetaDy_Sum();
@@ -372,7 +363,7 @@ double* Burgers2P::GetNextV() {
         if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
-    // *dt && daxpy
+    /// Loop unrolling to improve cache performance
     int i, j;
     int unrollfactor = 7;
     int maxval = NyrNxr - unrollfactor;
