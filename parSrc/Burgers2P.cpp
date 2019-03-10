@@ -24,6 +24,8 @@ Burgers2P::Burgers2P(Model &m) {
     /// Allocate memory to instance variables
     U = new double[NyrNxr];
     V = new double[NyrNxr];
+    NextU = new double[NyrNxr];
+    NextV = new double[NyrNxr];
 
     /// Caches
     upVel = new double[Nxr];
@@ -47,6 +49,8 @@ Burgers2P::~Burgers2P() {
     /// Delete U and V
     delete[] U;
     delete[] V;
+    delete[] NextU;
+    delete[] NextV;
 
     /// Delete Caches
     delete[] upVel;
@@ -100,17 +104,21 @@ void Burgers2P::SetInitialVelocity() {
 void Burgers2P::SetIntegratedVelocity() {
     /// Get model parameters
     int Nt = model->GetNt();
+    double* temp = nullptr;
 
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        double* NextU = GetNextU();
-        double* NextV = GetNextV();
+        GetNextU(NextU);
+        GetNextV(NextV);
 
-        /// Delete current pointer and point to NextVel
-        delete[] U;
-        delete[] V;
-        U = NextU;
-        V = NextV;
+        /// Swap variables
+        temp = NextU;
+        NextU = U;
+        U = temp;
+
+        temp = NextV;
+        NextV = V;
+        V = temp;
     }
 }
 
@@ -211,7 +219,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
-double* Burgers2P::GetNextU() {
+void Burgers2P::GetNextU(double* NextVel) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -231,9 +239,6 @@ double* Burgers2P::GetNextU() {
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
-
-    /// Generate NextVel
-    double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
@@ -276,14 +281,12 @@ double* Burgers2P::GetNextU() {
     }
 
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
-
-    return NextVel;
 }
 
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
-double* Burgers2P::GetNextV() {
+void Burgers2P::GetNextV(double* NextVel) {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -303,9 +306,6 @@ double* Burgers2P::GetNextV() {
 
     /// Set caches for Vel (Non-blocking)
     SetCaches(Vel);
-
-    /// Generate NextVel
-    double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
@@ -349,8 +349,6 @@ double* Burgers2P::GetNextV() {
     }
 
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
-
-    return NextVel;
 }
 
 /**

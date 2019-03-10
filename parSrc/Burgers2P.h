@@ -19,8 +19,8 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    double* GetNextU();
-    double* GetNextV();
+    void GetNextU(double* NextVel);
+    void GetNextV(double* NextVel);
     void SetCaches(double* Vel);
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
@@ -30,7 +30,8 @@ private:
     Model* model;
     double* U;
     double* V;
-
+    double* NextU;
+    double* NextV;
     double E;
 
     /// Caches for partitioning matrix
