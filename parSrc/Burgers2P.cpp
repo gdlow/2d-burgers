@@ -217,8 +217,8 @@ double* Burgers2P::GetNextU() {
     int Nxr = model->GetLocNxr();
     int NyrNxr = model->GetLocNyrNxr();
     double dt = model->GetDt();
-    double bdx = model->GetBDx();
-    double bdy = model->GetBDy();
+    double bdx = dt * model->GetBDx();
+    double bdy = dt * model->GetBDy();
 
     /// Get ranks
     int up = model->GetUp();
@@ -237,11 +237,11 @@ double* Burgers2P::GetNextU() {
     double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = model->GetAlpha_Sum();
-    double beta_dx_sum = model->GetBetaDx_Sum();
-    double beta_dy_sum = model->GetBetaDy_Sum();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double beta_dy_2 = model->GetBetaDy_2();
+    double alpha_sum = dt * model->GetAlpha_Sum();
+    double beta_dx_sum = dt * model->GetBetaDx_Sum();
+    double beta_dy_sum = dt * model->GetBetaDy_Sum();
+    double beta_dx_2 = dt * model->GetBetaDx_2();
+    double beta_dy_2 = dt * model->GetBetaDy_2();
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
@@ -276,23 +276,6 @@ double* Burgers2P::GetNextU() {
         if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
-    /// Loop unrolling to improve cache performance
-    int i, j;
-    int unrollfactor = 7;
-    int maxval = NyrNxr - unrollfactor;
-    for (i = 0; i < maxval; i+= unrollfactor+1) {
-        NextVel[i] *= dt;
-        NextVel[i+1] *= dt;
-        NextVel[i+2] *= dt;
-        NextVel[i+3] *= dt;
-        NextVel[i+4] *= dt;
-        NextVel[i+5] *= dt;
-        NextVel[i+6] *= dt;
-        NextVel[i+7] *= dt;
-    }
-    for (j = i; j < NyrNxr; j++) {
-        NextVel[j] *= dt;
-    }
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 
     return NextVel;
@@ -307,8 +290,8 @@ double* Burgers2P::GetNextV() {
     int Nxr = model->GetLocNxr();
     int NyrNxr = model->GetLocNyrNxr();
     double dt = model->GetDt();
-    double bdx = model->GetBDx();
-    double bdy = model->GetBDy();
+    double bdx = dt * model->GetBDx();
+    double bdy = dt * model->GetBDy();
 
     /// Get ranks
     int up = model->GetUp();
@@ -327,11 +310,11 @@ double* Burgers2P::GetNextV() {
     double* NextVel = new double[NyrNxr];
 
     /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = model->GetAlpha_Sum();
-    double beta_dx_sum = model->GetBetaDx_Sum();
-    double beta_dy_sum = model->GetBetaDy_Sum();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double beta_dy_2 = model->GetBetaDy_2();
+    double alpha_sum = dt * model->GetAlpha_Sum();
+    double beta_dx_sum = dt * model->GetBetaDx_Sum();
+    double beta_dy_sum = dt * model->GetBetaDy_Sum();
+    double beta_dx_2 = dt * model->GetBetaDx_2();
+    double beta_dy_2 = dt * model->GetBetaDy_2();
 
     double* Vel_iMinus = nullptr;
     double* Vel_iPlus = nullptr;
@@ -367,23 +350,6 @@ double* Burgers2P::GetNextV() {
         if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
     }
 
-    /// Loop unrolling to improve cache performance
-    int i, j;
-    int unrollfactor = 7;
-    int maxval = NyrNxr - unrollfactor;
-    for (i = 0; i < maxval; i+= unrollfactor+1) {
-        NextVel[i] *= dt;
-        NextVel[i+1] *= dt;
-        NextVel[i+2] *= dt;
-        NextVel[i+3] *= dt;
-        NextVel[i+4] *= dt;
-        NextVel[i+5] *= dt;
-        NextVel[i+6] *= dt;
-        NextVel[i+7] *= dt;
-    }
-    for (j = i; j < NyrNxr; j++) {
-        NextVel[j] *= dt;
-    }
     F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 
     return NextVel;
