@@ -1,6 +1,6 @@
 # Compilers and flags
 CXX = mpicxx
-CXXFLAGS = -std=c++11 -Wall -Ofast
+CXXFLAGS = -std=c++11 -Wall -O3
 LDLIBS = -lblas
 
 # Serial variables
@@ -56,7 +56,7 @@ burgp: compilep
 	mpiexec -np 2 ./compilep 1.0 0.5 1.0 0.02 10 10 1 2 1
 
 report: compilep
-	mpiexec -np 49 ./compilep 1.0 0.5 1.0 0.02 10 10 1 7 7
+	mpiexec -np 12 ./compilep 1.0 0.5 1.0 0.02 10 10 1 3 4
 
 # Misc
 default: compile
