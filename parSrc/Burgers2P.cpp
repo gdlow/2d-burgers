@@ -239,7 +239,7 @@ void Burgers2P::GetNextVelocities() {
     int NyrNxr = model->GetLocNyrNxr();
     /// Set caches for U and V (Non-blocking)
     SetCaches();
-    /// Computes Linear and Non-Linear Terms
+    /// Computes linear and non-linear terms
     ComputeNextVelocityState();
     /// MPI wait for all comms to finish
     MPI_Waitall(16, reqs, stats);
@@ -261,6 +261,7 @@ void Burgers2P::SetCaches() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
+    int NyrNxr = model->GetLocNyrNxr();
 
     /// Get ranks
     int up = model->GetUp();
@@ -273,14 +274,19 @@ void Burgers2P::SetCaches() {
     int flag;
 
     /// Get Vel bounds for this sub-matrix
-    F77NAME(dcopy)(Nxr, U, Nyr, myUpU, 1);
-    F77NAME(dcopy)(Nxr, &(U[Nyr-1]), Nyr, myDownU, 1);
-    F77NAME(dcopy)(Nyr, U, 1, myLeftU, 1);
-    F77NAME(dcopy)(Nyr, &(U[(Nxr-1)*Nyr]), 1, myRightU, 1);
-    F77NAME(dcopy)(Nxr, V, Nyr, myUpV, 1);
-    F77NAME(dcopy)(Nxr, &(V[Nyr-1]), Nyr, myDownV, 1);
-    F77NAME(dcopy)(Nyr, V, 1, myLeftV, 1);
-    F77NAME(dcopy)(Nyr, &(V[(Nxr-1)*Nyr]), 1, myRightV, 1);
+    for (int k = 0, i = 0; k < NyrNxr; k += Nyr, i++) {
+        myUpU[i] = U[k];
+        myUpV[i] = V[k];
+        int didx = k + Nyr-1;
+        myDownU[i] = U[didx];
+        myDownV[i] = V[didx];
+    }
+    for (int k = (Nxr-1)*Nyr, i = 0; k < NyrNxr; k++, i++) {
+        myLeftU[i] = U[i];
+        myLeftV[i] = V[i];
+        myRightU[i] = U[k];
+        myRightV[i] = V[k];
+    }
 
     /// Exchange up/down
     flag = 0;
@@ -324,6 +330,7 @@ void Burgers2P::ComputeNextVelocityState() {
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
 
+    /// Pointers to row shifts in U,V
     double* U_iMinus = nullptr;
     double* U_iPlus = nullptr;
     double* V_iMinus = nullptr;
