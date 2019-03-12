@@ -236,78 +236,15 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * */
 void Burgers2P::GetNextVelocities() {
     /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
     int NyrNxr = model->GetLocNyrNxr();
-    double bdx = model->GetBDx();
-    double bdy = model->GetBDy();
-
-    /// Get ranks
-    int up = model->GetUp();
-    int down = model->GetDown();
-    int left = model->GetLeft();
-    int right = model->GetRight();
-
     /// Set caches for U and V (Non-blocking)
     SetCaches();
-
-    /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = model->GetAlpha_Sum();
-    double beta_dx_sum = model->GetBetaDx_Sum();
-    double beta_dy_sum = model->GetBetaDy_Sum();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double beta_dy_2 = model->GetBetaDy_2();
-
-    double* U_iMinus = nullptr;
-    double* U_iPlus = nullptr;
-    double* V_iMinus = nullptr;
-    double* V_iPlus = nullptr;
-    double bdxU, bdyV;
-    for (int i = 0; i < Nxr; i++) {
-        if (i > 0) U_iMinus = &(U[(i-1)*Nyr]);
-        if (i < Nxr-1) U_iPlus = &(U[(i+1)*Nyr]);
-        if (i > 0) V_iMinus = &(V[(i-1)*Nyr]);
-        if (i < Nxr-1) V_iPlus = &(V[(i+1)*Nyr]);
-        int start = i*Nyr;
-        for (int j = 0; j < Nyr; j++) {
-            int curr = start + j;
-            bdxU = bdx * U[curr]; bdyV = bdy * V[curr];
-
-            NextU[curr] = (alpha_sum - bdxU - bdyV) * U[curr];
-            NextU[curr] = (i>0)? NextU[curr] + (bdxU + beta_dx_sum) * U_iMinus[j] : NextU[curr];
-            NextU[curr] = (j>0)? NextU[curr] + (bdyV + beta_dy_sum) * U[curr-1] : NextU[curr];
-            NextU[curr] = (i<Nxr-1)? NextU[curr] + beta_dx_2 * U_iPlus[j] : NextU[curr];
-            NextU[curr] = (j<Nyr-1)? NextU[curr] + beta_dy_2 * U[curr+1] : NextU[curr];
-
-            NextV[curr] = (alpha_sum - bdyV - bdxU) * V[curr];
-            NextV[curr] = (i>0)? NextV[curr] + (bdxU + beta_dx_sum) * V_iMinus[j] : NextV[curr];
-            NextV[curr] = (j>0)? NextV[curr] + (bdyV + beta_dy_sum) * V[curr-1] : NextV[curr];
-            NextV[curr] = (i<Nxr-1)? NextV[curr] + beta_dx_2 * V_iPlus[j] : NextV[curr];
-            NextV[curr] = (j<Nyr-1)? NextV[curr] + beta_dy_2 * V[curr+1] : NextV[curr];
-        }
-    }
-
-    /// Update bounds here
+    /// Computes Linear and Non-Linear Terms
+    ComputeNextVelocityState();
     /// MPI wait for all comms to finish
     MPI_Waitall(16, reqs, stats);
-
-    // Makes sense to recompute bdxU, bdyV in updating conditions
-    /// Fix left and right boundaries
-    for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) NextU[j] += (beta_dx_sum + bdx * U[j]) * leftU[j];
-        if (right >= 0) NextU[(Nxr-1)*Nyr+j] += beta_dx_2*rightU[j];
-        if (left >= 0) NextV[j] += (beta_dx_sum + bdx * U[j])*leftV[j];
-        if (right >= 0) NextV[(Nxr-1)*Nyr+j] += beta_dx_2*rightV[j];
-    }
-
-    /// Fix up and down boundaries
-    for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) NextU[i*Nyr] += (beta_dy_sum + bdy * V[i*Nyr]) * upU[i];
-        if (down >= 0) NextU[i*Nyr+(Nyr-1)] += beta_dy_2*downU[i];
-        if (up >= 0) NextV[i*Nyr] += (beta_dy_sum + bdy * V[i*Nyr])*upV[i];
-        if (down >= 0) NextV[i*Nyr+(Nyr-1)] += beta_dy_2*downV[i];
-    }
-
+    /// Fix boundary conditions in parallel
+    FixNextVelocityBoundaries();
     /// Add current Vel
     for (int k = 0; k < NyrNxr; k++) {
         NextU[k] += U[k];
@@ -372,6 +309,117 @@ void Burgers2P::SetCaches() {
     MPI_Irecv(rightV, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[15]);
 }
 
+
+void Burgers2P::ComputeNextVelocityState() {
+    /// Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+
+    /// Compute first, second derivatives, & non-linear terms
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+
+    double* U_iMinus = nullptr;
+    double* U_iPlus = nullptr;
+    double* V_iMinus = nullptr;
+    double* V_iPlus = nullptr;
+    double bdxU, bdyV;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) {
+            U_iMinus = &(U[(i-1)*Nyr]);
+            V_iMinus = &(V[(i-1)*Nyr]);
+        }
+        if (i < Nxr-1) {
+            U_iPlus = &(U[(i+1)*Nyr]);
+            V_iPlus = &(V[(i+1)*Nyr]);
+        }
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            bdxU = bdx * U[curr];
+            bdyV = bdy * V[curr];
+
+            double alpha_total = alpha_sum - bdxU - bdyV;
+            NextU[curr] = alpha_total * U[curr];
+            NextV[curr] = alpha_total * V[curr];
+
+            if (i > 0) {
+                double bdxU_total = bdxU + beta_dx_sum;
+                NextU[curr] += bdxU_total * U_iMinus[j];
+                NextV[curr] += bdxU_total * V_iMinus[j];
+            }
+            if (j > 0) {
+                double bdyV_total = bdyV + beta_dy_sum;
+                NextU[curr] += bdyV_total * U[curr-1];
+                NextV[curr] += bdyV_total * V[curr-1];
+            }
+            if (i < Nxr-1) {
+                NextU[curr] += beta_dx_2 * U_iPlus[j];
+                NextV[curr] += beta_dx_2 * V_iPlus[j];
+            }
+            if (j < Nyr-1) {
+                NextU[curr] += beta_dy_2 * U[curr+1];
+                NextV[curr] += beta_dy_2 * V[curr+1];
+            }
+        }
+    }
+}
+
+void Burgers2P::FixNextVelocityBoundaries() {
+    /// Get model parameters
+    int Nyr = model->GetLocNyr();
+    int Nxr = model->GetLocNxr();
+
+    /// Get ranks
+    int up = model->GetUp();
+    int down = model->GetDown();
+    int left = model->GetLeft();
+    int right = model->GetRight();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+
+    /// Fix left and right boundaries
+    double bdxU, bdyV;
+    for (int j = 0; j < Nyr; j++) {
+        if (left >= 0) {
+            bdxU = bdx * U[j];
+            double bdxU_total = beta_dx_sum + bdxU;
+            NextU[j] += bdxU_total * leftU[j];
+            NextV[j] += bdxU_total * leftV[j];
+        }
+        if (right >= 0) {
+            int ridx = (Nxr-1)*Nyr+j;
+            NextU[ridx] += beta_dx_2 * rightU[j];
+            NextV[ridx] += beta_dx_2 * rightV[j];
+        }
+    }
+
+    /// Fix up and down boundaries
+    for (int i = 0; i < Nxr; i++) {
+        int upidx = i*Nyr;
+        if (up >= 0) {
+            bdyV = bdy * V[upidx];
+            double bdyV_total = beta_dy_sum + bdyV;
+            NextU[upidx] += bdyV_total * upU[i];
+            NextV[upidx] += bdyV_total * upV[i];
+        }
+        if (down >= 0) {
+            int didx = upidx + (Nyr-1);
+            NextU[didx] += beta_dy_2 * downU[i];
+            NextV[didx] += beta_dy_2 * downV[i];
+
+        }
+    }
+}
 /**
  * @brief Private helper function that assembles the global matrix into a pre-allocated M
  * @brief Arranges data into row-major format from a column-major format in the 1D pointer Vel

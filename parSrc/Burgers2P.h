@@ -20,6 +20,8 @@ public:
     double GetE()     const { return E; }
 private:
     void GetNextVelocities();
+    void ComputeNextVelocityState();
+    void FixNextVelocityBoundaries();
     void SetCaches();
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
