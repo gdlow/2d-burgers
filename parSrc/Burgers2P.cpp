@@ -235,17 +235,11 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
 void Burgers2P::GetNextVelocities() {
-    /// Get model parameters
     int NyrNxr = model->GetLocNyrNxr();
-    /// Set caches for U and V (Non-blocking)
     SetCaches();
-    /// Computes linear and non-linear terms
     ComputeNextVelocityState();
-    /// MPI wait for all comms to finish
     MPI_Waitall(16, reqs, stats);
-    /// Fix boundary conditions in parallel
     FixNextVelocityBoundaries();
-    /// Add current Vel
     for (int k = 0; k < NyrNxr; k++) {
         NextU[k] += U[k];
         NextV[k] += V[k];
@@ -254,8 +248,6 @@ void Burgers2P::GetNextVelocities() {
 
 /**
  * @brief Private helper function that sets the boundary condition velocities
- * @brief Uses non-blocking MPI send and receives to exchange boundaries
- * @param Vel pointer to U or V
  * */
 void Burgers2P::SetCaches() {
     /// Get model parameters
@@ -315,7 +307,9 @@ void Burgers2P::SetCaches() {
     MPI_Irecv(rightV, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[15]);
 }
 
-
+/**
+ * @brief Computes linear and non-linear terms for U and V
+ * */
 void Burgers2P::ComputeNextVelocityState() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
@@ -331,21 +325,12 @@ void Burgers2P::ComputeNextVelocityState() {
     double bdy = model->GetBDy();
 
     /// Pointers to row shifts in U,V
-    double* U_iMinus = nullptr;
-    double* U_iPlus = nullptr;
-    double* V_iMinus = nullptr;
-    double* V_iPlus = nullptr;
+    int iPlus, iMinus;
     double bdxU, bdyV;
     for (int i = 0; i < Nxr; i++) {
-        if (i > 0) {
-            U_iMinus = &(U[(i-1)*Nyr]);
-            V_iMinus = &(V[(i-1)*Nyr]);
-        }
-        if (i < Nxr-1) {
-            U_iPlus = &(U[(i+1)*Nyr]);
-            V_iPlus = &(V[(i+1)*Nyr]);
-        }
         int start = i*Nyr;
+        iMinus = (i-1)*Nyr;
+        iPlus = (i+1)*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
             bdxU = bdx * U[curr];
@@ -357,8 +342,8 @@ void Burgers2P::ComputeNextVelocityState() {
 
             if (i > 0) {
                 double bdxU_total = bdxU + beta_dx_sum;
-                NextU[curr] += bdxU_total * U_iMinus[j];
-                NextV[curr] += bdxU_total * V_iMinus[j];
+                NextU[curr] += bdxU_total * U[iMinus+j];
+                NextV[curr] += bdxU_total * V[iMinus+j];
             }
             if (j > 0) {
                 double bdyV_total = bdyV + beta_dy_sum;
@@ -366,8 +351,8 @@ void Burgers2P::ComputeNextVelocityState() {
                 NextV[curr] += bdyV_total * V[curr-1];
             }
             if (i < Nxr-1) {
-                NextU[curr] += beta_dx_2 * U_iPlus[j];
-                NextV[curr] += beta_dx_2 * V_iPlus[j];
+                NextU[curr] += beta_dx_2 * U[iPlus+j];
+                NextV[curr] += beta_dx_2 * V[iPlus+j];
             }
             if (j < Nyr-1) {
                 NextU[curr] += beta_dy_2 * U[curr+1];
@@ -376,7 +361,9 @@ void Burgers2P::ComputeNextVelocityState() {
         }
     }
 }
-
+/**
+ * @brief Fixes boundary conditions for U and V
+ * */
 void Burgers2P::FixNextVelocityBoundaries() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
