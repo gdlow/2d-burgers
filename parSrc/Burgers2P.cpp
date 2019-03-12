@@ -339,20 +339,19 @@ void Burgers2P::ComputeNextVelocityState() {
             double alpha_total = alpha_sum - bdxU - bdyV;
             NextU[curr] = alpha_total * U[curr];
             NextV[curr] = alpha_total * V[curr];
-
             if (i > 0) {
                 double bdxU_total = bdxU + beta_dx_sum;
                 NextU[curr] += bdxU_total * U[iMinus+j];
                 NextV[curr] += bdxU_total * V[iMinus+j];
             }
+            if (i < Nxr-1) {
+                NextU[curr] += beta_dx_2 * U[iPlus+j];
+                NextV[curr] += beta_dx_2 * V[iPlus+j];
+            }
             if (j > 0) {
                 double bdyV_total = bdyV + beta_dy_sum;
                 NextU[curr] += bdyV_total * U[curr-1];
                 NextV[curr] += bdyV_total * V[curr-1];
-            }
-            if (i < Nxr-1) {
-                NextU[curr] += beta_dx_2 * U[iPlus+j];
-                NextV[curr] += beta_dx_2 * V[iPlus+j];
             }
             if (j < Nyr-1) {
                 NextU[curr] += beta_dy_2 * U[curr+1];
