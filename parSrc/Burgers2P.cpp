@@ -28,18 +28,26 @@ Burgers2P::Burgers2P(Model &m) {
     NextV = new double[NyrNxr];
 
     /// Caches
-    upVel = new double[Nxr];
-    downVel = new double[Nxr];
-    leftVel = new double[Nyr];
-    rightVel = new double[Nyr];
-    myUpVel = new double[Nxr];
-    myDownVel = new double[Nxr];
-    myLeftVel = new double[Nyr];
-    myRightVel = new double[Nyr];
+    upV = new double[Nxr];
+    downV = new double[Nxr];
+    leftV = new double[Nyr];
+    rightV = new double[Nyr];
+    myUpV = new double[Nxr];
+    myDownV = new double[Nxr];
+    myLeftV = new double[Nyr];
+    myRightV = new double[Nyr];
+    upU = new double[Nxr];
+    downU = new double[Nxr];
+    leftU = new double[Nyr];
+    rightU = new double[Nyr];
+    myUpU = new double[Nxr];
+    myDownU = new double[Nxr];
+    myLeftU = new double[Nyr];
+    myRightU = new double[Nyr];
 
     /// Generate new MPI request and stats
-    reqs = new MPI_Request[8];
-    stats = new MPI_Status[8];
+    reqs = new MPI_Request[16];
+    stats = new MPI_Status[16];
 }
 
 /**
@@ -53,14 +61,22 @@ Burgers2P::~Burgers2P() {
     delete[] NextV;
 
     /// Delete Caches
-    delete[] upVel;
-    delete[] downVel;
-    delete[] leftVel;
-    delete[] rightVel;
-    delete[] myUpVel;
-    delete[] myDownVel;
-    delete[] myLeftVel;
-    delete[] myRightVel;
+    delete[] upV;
+    delete[] downV;
+    delete[] leftV;
+    delete[] rightV;
+    delete[] myUpV;
+    delete[] myDownV;
+    delete[] myLeftV;
+    delete[] myRightV;
+    delete[] upU;
+    delete[] downU;
+    delete[] leftU;
+    delete[] rightU;
+    delete[] myUpU;
+    delete[] myDownU;
+    delete[] myLeftU;
+    delete[] myRightU;
 
     /// Deallocate memory of MPI requests and stats
     delete[] stats;
@@ -108,8 +124,7 @@ void Burgers2P::SetIntegratedVelocity() {
 
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        GetNextU(NextU);
-        GetNextV(NextV);
+        GetNextVelocities();
 
         /// Swap variables
         temp = NextU;
@@ -219,7 +234,7 @@ double Burgers2P::CalculateEnergyState(double* Ui, double* Vi) {
 /**
  * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
-void Burgers2P::GetNextU(double* NextVel) {
+void Burgers2P::GetNextVelocities() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -233,79 +248,8 @@ void Burgers2P::GetNextU(double* NextVel) {
     int left = model->GetLeft();
     int right = model->GetRight();
 
-    /// Set aliases for computation
-    double* Vel = U;
-    double* Other = V;
-
-    /// Set caches for Vel (Non-blocking)
-    SetCaches(Vel);
-
-    /// Compute first, second derivatives, & non-linear terms
-    double alpha_sum = model->GetAlpha_Sum();
-    double beta_dx_sum = model->GetBetaDx_Sum();
-    double beta_dy_sum = model->GetBetaDy_Sum();
-    double beta_dx_2 =  model->GetBetaDx_2();
-    double beta_dy_2 = model->GetBetaDy_2();
-
-    double* Vel_iMinus = nullptr;
-    double* Vel_iPlus = nullptr;
-    double nonLinVel, nonLinOther;
-    for (int i = 0; i < Nxr; i++) {
-        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
-        int start = i*Nyr;
-        for (int j = 0; j < Nyr; j++) {
-            int curr = start + j;
-            nonLinVel = bdx*Vel[curr]; nonLinOther = bdy*Other[curr];
-            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinVel + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinOther + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
-            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
-        }
-    }
-
-    /// Update bounds here
-    /// MPI wait for all comms to finish
-    MPI_Waitall(8, reqs, stats);
-
-    for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Vel[j]) * leftVel[j];
-        if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
-    }
-
-    /// Fix up and down boundaries
-    for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Other[i*Nyr]) * upVel[i];
-        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
-    }
-
-    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
-}
-
-/**
- * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * */
-void Burgers2P::GetNextV(double* NextVel) {
-    /// Get model parameters
-    int Nyr = model->GetLocNyr();
-    int Nxr = model->GetLocNxr();
-    int NyrNxr = model->GetLocNyrNxr();
-    double bdx = model->GetBDx();
-    double bdy = model->GetBDy();
-
-    /// Get ranks
-    int up = model->GetUp();
-    int down = model->GetDown();
-    int left = model->GetLeft();
-    int right = model->GetRight();
-
-    /// Set aliases for computation
-    double* Vel = V;
-    double* Other = U;
-
-    /// Set caches for Vel (Non-blocking)
-    SetCaches(Vel);
+    /// Set caches for U and V (Non-blocking)
+    SetCaches();
 
     /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
@@ -314,41 +258,61 @@ void Burgers2P::GetNextV(double* NextVel) {
     double beta_dx_2 = model->GetBetaDx_2();
     double beta_dy_2 = model->GetBetaDy_2();
 
-    double* Vel_iMinus = nullptr;
-    double* Vel_iPlus = nullptr;
-    double nonLinVel, nonLinOther;
+    double* U_iMinus = nullptr;
+    double* U_iPlus = nullptr;
+    double* V_iMinus = nullptr;
+    double* V_iPlus = nullptr;
+    double bdxU, bdyV;
     for (int i = 0; i < Nxr; i++) {
-        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
-        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        if (i > 0) U_iMinus = &(U[(i-1)*Nyr]);
+        if (i < Nxr-1) U_iPlus = &(U[(i+1)*Nyr]);
+        if (i > 0) V_iMinus = &(V[(i-1)*Nyr]);
+        if (i < Nxr-1) V_iPlus = &(V[(i+1)*Nyr]);
         int start = i*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            nonLinVel = bdy * Vel[curr]; nonLinOther = bdx * Other[curr];
-            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
-            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinOther + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
-            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinVel + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
-            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
-            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+            bdxU = bdx * U[curr]; bdyV = bdy * V[curr];
+
+            NextU[curr] = (alpha_sum - bdxU - bdyV) * U[curr];
+            NextU[curr] = (i>0)? NextU[curr] + (bdxU + beta_dx_sum) * U_iMinus[j] : NextU[curr];
+            NextU[curr] = (j>0)? NextU[curr] + (bdyV + beta_dy_sum) * U[curr-1] : NextU[curr];
+            NextU[curr] = (i<Nxr-1)? NextU[curr] + beta_dx_2 * U_iPlus[j] : NextU[curr];
+            NextU[curr] = (j<Nyr-1)? NextU[curr] + beta_dy_2 * U[curr+1] : NextU[curr];
+
+            NextV[curr] = (alpha_sum - bdyV - bdxU) * V[curr];
+            NextV[curr] = (i>0)? NextV[curr] + (bdxU + beta_dx_sum) * V_iMinus[j] : NextV[curr];
+            NextV[curr] = (j>0)? NextV[curr] + (bdyV + beta_dy_sum) * V[curr-1] : NextV[curr];
+            NextV[curr] = (i<Nxr-1)? NextV[curr] + beta_dx_2 * V_iPlus[j] : NextV[curr];
+            NextV[curr] = (j<Nyr-1)? NextV[curr] + beta_dy_2 * V[curr+1] : NextV[curr];
         }
     }
 
     /// Update bounds here
     /// MPI wait for all comms to finish
-    MPI_Waitall(8, reqs, stats);
+    MPI_Waitall(16, reqs, stats);
 
+    // Makes sense to recompute bdxU, bdyV in updating conditions
     /// Fix left and right boundaries
     for (int j = 0; j < Nyr; j++) {
-        if (left >= 0) NextVel[j] += (beta_dx_sum + bdx * Other[j])*leftVel[j];
-        if (right >= 0) NextVel[(Nxr-1)*Nyr+j] += beta_dx_2*rightVel[j];
+        if (left >= 0) NextU[j] += (beta_dx_sum + bdx * U[j]) * leftU[j];
+        if (right >= 0) NextU[(Nxr-1)*Nyr+j] += beta_dx_2*rightU[j];
+        if (left >= 0) NextV[j] += (beta_dx_sum + bdx * U[j])*leftV[j];
+        if (right >= 0) NextV[(Nxr-1)*Nyr+j] += beta_dx_2*rightV[j];
     }
 
     /// Fix up and down boundaries
     for (int i = 0; i < Nxr; i++) {
-        if (up >= 0) NextVel[i*Nyr] += (beta_dy_sum + bdy * Vel[i*Nyr])*upVel[i];
-        if (down >= 0) NextVel[i*Nyr+(Nyr-1)] += beta_dy_2*downVel[i];
+        if (up >= 0) NextU[i*Nyr] += (beta_dy_sum + bdy * V[i*Nyr]) * upU[i];
+        if (down >= 0) NextU[i*Nyr+(Nyr-1)] += beta_dy_2*downU[i];
+        if (up >= 0) NextV[i*Nyr] += (beta_dy_sum + bdy * V[i*Nyr])*upV[i];
+        if (down >= 0) NextV[i*Nyr+(Nyr-1)] += beta_dy_2*downV[i];
     }
 
-    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
+    /// Add current Vel
+    for (int k = 0; k < NyrNxr; k++) {
+        NextU[k] += U[k];
+        NextV[k] += V[k];
+    }
 }
 
 /**
@@ -356,7 +320,7 @@ void Burgers2P::GetNextV(double* NextVel) {
  * @brief Uses non-blocking MPI send and receives to exchange boundaries
  * @param Vel pointer to U or V
  * */
-void Burgers2P::SetCaches(double* Vel) {
+void Burgers2P::SetCaches() {
     /// Get model parameters
     int Nyr = model->GetLocNyr();
     int Nxr = model->GetLocNxr();
@@ -372,28 +336,40 @@ void Burgers2P::SetCaches(double* Vel) {
     int flag;
 
     /// Get Vel bounds for this sub-matrix
-    F77NAME(dcopy)(Nxr, Vel, Nyr, myUpVel, 1);
-    F77NAME(dcopy)(Nxr, &(Vel[Nyr-1]), Nyr, myDownVel, 1);
-    F77NAME(dcopy)(Nyr, Vel, 1, myLeftVel, 1);
-    F77NAME(dcopy)(Nyr, &(Vel[(Nxr-1)*Nyr]), 1, myRightVel, 1);
+    F77NAME(dcopy)(Nxr, U, Nyr, myUpU, 1);
+    F77NAME(dcopy)(Nxr, &(U[Nyr-1]), Nyr, myDownU, 1);
+    F77NAME(dcopy)(Nyr, U, 1, myLeftU, 1);
+    F77NAME(dcopy)(Nyr, &(U[(Nxr-1)*Nyr]), 1, myRightU, 1);
+    F77NAME(dcopy)(Nxr, V, Nyr, myUpV, 1);
+    F77NAME(dcopy)(Nxr, &(V[Nyr-1]), Nyr, myDownV, 1);
+    F77NAME(dcopy)(Nyr, V, 1, myLeftV, 1);
+    F77NAME(dcopy)(Nyr, &(V[(Nxr-1)*Nyr]), 1, myRightV, 1);
 
     /// Exchange up/down
     flag = 0;
     /* Send down boundary to down and receive into up boundary */
-    MPI_Isend(myDownVel, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[0]);
-    MPI_Irecv(upVel, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[1]);
+    MPI_Isend(myDownU, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[0]);
+    MPI_Irecv(upU, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[1]);
+    MPI_Isend(myDownV, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[2]);
+    MPI_Irecv(upV, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[3]);
     /* Send up boundary to up and receive into down boundary */
-    MPI_Isend(myUpVel, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[2]);
-    MPI_Irecv(downVel, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[3]);
+    MPI_Isend(myUpU, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[4]);
+    MPI_Irecv(downU, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[5]);
+    MPI_Isend(myUpV, Nxr, MPI_DOUBLE, up, flag, vu, &reqs[6]);
+    MPI_Irecv(downV, Nxr, MPI_DOUBLE, down, flag, vu, &reqs[7]);
 
     /// Exchange left/right
     flag = 1;
     /* Send right boundary to right and receive into left boundary */
-    MPI_Isend(myRightVel, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[4]);
-    MPI_Irecv(leftVel, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[5]);
+    MPI_Isend(myRightU, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[8]);
+    MPI_Irecv(leftU, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[9]);
+    MPI_Isend(myRightV, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[10]);
+    MPI_Irecv(leftV, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[11]);
     /* Send left boundary to left and receive into right boundary */
-    MPI_Isend(myLeftVel, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[6]);
-    MPI_Irecv(rightVel, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[7]);
+    MPI_Isend(myLeftU, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[12]);
+    MPI_Irecv(rightU, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[13]);
+    MPI_Isend(myLeftV, Nyr, MPI_DOUBLE, left, flag, vu, &reqs[14]);
+    MPI_Irecv(rightV, Nyr, MPI_DOUBLE, right, flag, vu, &reqs[15]);
 }
 
 /**
