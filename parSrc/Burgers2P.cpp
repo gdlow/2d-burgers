@@ -120,32 +120,16 @@ void Burgers2P::SetInitialVelocity() {
 void Burgers2P::SetIntegratedVelocity() {
     /// Get model parameters
     int Nt = model->GetNt();
-
-    /// Compute U, V for every step k (unrolled)
-    int k, l, unroll_factor, maxVal;
-    unroll_factor = 7;
-    maxVal = Nt-1-unroll_factor;
-    for (k = 0; k < maxVal; k+=unroll_factor+1) {
+    double* temp = nullptr;
+    /// Compute U, V for every step k
+    for (int k = 0; k < Nt-1; ++k) {
         GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-        GetNextVelocities();
-        SwapVars();
-    }
-    for (l = k; l < Nt-1; ++l) {
-        GetNextVelocities();
-        SwapVars();
+        temp = NextU;
+        NextU = U;
+        U = temp;
+        temp = NextV;
+        NextV = V;
+        V = temp;
     }
 }
 
@@ -426,19 +410,6 @@ void Burgers2P::FixNextVelocityBoundaries() {
     }
 }
 
-/**
- * @brief Swaps Next Vel state with Current Vel
- * */
-void Burgers2P::SwapVars() {
-    double* temp = nullptr;
-    temp = NextU;
-    NextU = U;
-    U = temp;
-
-    temp = NextV;
-    NextV = V;
-    V = temp;
-}
 /**
  * @brief Private helper function that assembles the global matrix into a pre-allocated M
  * @brief Arranges data into row-major format from a column-major format in the 1D pointer Vel

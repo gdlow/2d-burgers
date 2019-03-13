@@ -23,7 +23,6 @@ private:
     void ComputeNextVelocityState();
     void FixNextVelocityBoundaries();
     void SetCaches();
-    void SwapVars();
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
     void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
