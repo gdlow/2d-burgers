@@ -341,8 +341,8 @@ void Burgers2P::ComputeNextVelocityState() {
     double bdxU, bdyV;
     for (int i = 0; i < Nxr; i++) {
         int start = i*Nyr;
-        iMinus = (i-1)*Nyr;
-        iPlus = (i+1)*Nyr;
+        iMinus = start-Nyr;
+        iPlus = start+Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
             bdxU = bdx * U[curr];
