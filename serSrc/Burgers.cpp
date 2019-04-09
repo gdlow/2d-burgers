@@ -2,9 +2,8 @@
 #include <fstream>
 #include <iomanip>
 #include "BLAS_Wrapper.h"
-#include "Helpers.h"
 #include "Burgers.h"
-
+#include <iostream>
 using namespace std;
 
 /**
@@ -25,36 +24,19 @@ Burgers::Burgers(Model &m) {
     /// Allocate memory to instance variables
     U = new double[Nyr*Nxr];
     V = new double[Nyr*Nxr];
-
-    /// Matrix coefficients
-    dVel_dx_2_coeffs = new double[Nxr*Nxr];
-    dVel_dy_2_coeffs = new double[Nyr*Nyr];
-    dVel_dx_coeffs = new double[Nxr*Nxr];
-    dVel_dy_coeffs = new double[Nyr*Nyr];
-
-    /// Term arrays
-    dVel_2 = new double[Nyr*Nxr];
-    dVel = new double[Nyr*Nxr];
+    NextU = new double[Nyr*Nxr];
+    NextV = new double[Nyr*Nxr];
 }
 
 /**
  * @brief Destructor: Deletes all allocated pointers in the class instance
  * */
 Burgers::~Burgers() {
-    /// Delete matrix coefficients
-    delete[] dVel_dx_2_coeffs;
-    delete[] dVel_dy_2_coeffs;
-    delete[] dVel_dx_coeffs;
-    delete[] dVel_dy_coeffs;
-
     /// Delete U and V
     delete[] U;
     delete[] V;
-
-    /// Delete term arrays
-    delete[] dVel_2;
-    delete[] dVel;
-
+    delete[] NextU;
+    delete[] NextV;
     /// model is not dynamically alloc
 }
 
@@ -80,7 +62,7 @@ void Burgers::SetInitialVelocity() {
             // Assumes x0 and y0 are identifying top LHS of matrix
             double y = y0 - (j+1)*dy;
             double x = x0 + (i+1)*dx;
-            double r = ComputeR(x, y);
+            double r = pow(x*x+y*y, 0.5);
             // Store in column-major format
             U[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
             V[i*Nyr+j] = (r <= 1.0)? 2.0*pow(1.0-r,4.0) * (4.0*r+1.0) : 0.0;
@@ -94,19 +76,18 @@ void Burgers::SetInitialVelocity() {
 void Burgers::SetIntegratedVelocity() {
     /// Get model parameters
     int Nt = model->GetNt();
-
-    /// Set Matrix Coefficients
-    SetMatrixCoefficients();
-
+    double* temp = nullptr;
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        double* NextU = NextVelocityState(U, V, true);
-        double* NextV = NextVelocityState(U, V, false);
-        /// Delete current pointer and point to NextVel
-        delete[] U;
-        delete[] V;
-        U = NextU;
-        V = NextV;
+        ComputeNextVelocityState();
+        temp = NextU;
+        NextU = U;
+        U = temp;
+
+        temp = NextV;
+        NextV = V;
+        V = temp;
+        cout << "step: " << k << "\n";
     }
 }
 
@@ -191,108 +172,75 @@ void Burgers::SetEnergy() {
 }
 
 /**
- * @brief Private helper function that computes and returns next velocity state based on previous inputs
- * @param Ui U velocity per timestamp
- * @param Vi V velocity per timestamp
- * @param SELECT_U true if the computation is for U
+ * @brief Computes linear and non-linear terms for U and V
  * */
-double* Burgers::NextVelocityState(double* Ui, double* Vi, bool SELECT_U) {
+void Burgers::ComputeNextVelocityState() {
     /// Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-    double dt = model->GetDt();
+    int Nyr = model->GetNy() - 2;
+    int Nxr = model->GetNx() - 2;
+
+    /// Compute first, second derivatives, & non-linear terms
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
     double bdx = model->GetBDx();
     double bdy = model->GetBDy();
 
-    /// Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
+    /// Pointers to row shifts in U,V
+    int iPlus, iMinus;
+    double bdxU, bdyV;
+    for (int i = 0; i < Nxr; i++) {
+        int start = i*Nyr;
+        iMinus = (i-1)*Nyr;
+        iPlus = (i+1)*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            bdxU = bdx * U[curr];
+            bdyV = bdy * V[curr];
 
-    /// Set aliases for computation
-    double* Vel = (SELECT_U) ? Ui : Vi;
-    double* Other = (SELECT_U)? Vi : Ui;
-
-    /// Generate NextVel
-    double* NextVel = new double[Nyr*Nxr];
-
-    /// Compute first & second derivatives
-    // x
-    for (int i = 0; i < Nyr; i++) {
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 1, 1.0, dVel_dx_2_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel_2[i]), Nyr);
-        F77NAME(dgbmv)('N', Nxr, Nxr, 1, 0, 1.0, dVel_dx_coeffs, Nxr, &(Vel[i]), Nyr, 0.0, &(dVel[i]), Nyr);
-    }
-    // y
-    for (int i = 0; i < Nyr*Nxr; i += Nyr) {
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 1, 1.0, dVel_dy_2_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel_2[i]), 1);
-        F77NAME(dgbmv)('N', Nyr, Nyr, 1, 0, 1.0, dVel_dy_coeffs, Nyr, &(Vel[i]), 1, 1.0, &(dVel[i]), 1);
-    }
-
-    /// Matrix addition through all terms
-    if (SELECT_U) {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            double Vel_Vel = bdx * Vel[i] * Vel[i];
-            double Vel_Other = bdy * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Vel[i];
-            double Vel_Other_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Other[i];
-
-            NextVel[i] = dVel_2[i] - dVel[i] -
-                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-            NextVel[i] *= dt;
-            NextVel[i] += Vel[i];
-        }
-    }
-    else {
-        for (int i = 0; i < Nyr*Nxr; i++) {
-            double Vel_Vel = bdy * Vel[i] * Vel[i];
-            double Vel_Other = bdx * Vel[i] * Other[i];
-            double Vel_Vel_Minus_1 = (i % Nyr == 0)? 0 : bdy * Vel[i-1] * Vel[i];
-            double Vel_Other_Minus_1 = (i < Nyr)? 0 : bdx * Vel[i-Nyr] * Other[i];
-
-            NextVel[i] = dVel_2[i] - dVel[i] -
-                         (Vel_Vel + Vel_Other - Vel_Vel_Minus_1 - Vel_Other_Minus_1);
-            NextVel[i] *= dt;
-            NextVel[i] += Vel[i];
+            double alpha_total = alpha_sum - bdxU - bdyV;
+            NextU[curr] = alpha_total * U[curr];
+            NextV[curr] = alpha_total * V[curr];
+            if (i < Nxr-1) {
+                NextU[curr] += beta_dx_2 * U[iPlus+j];
+                NextV[curr] += beta_dx_2 * V[iPlus+j];
+            }
+            if (i > 0) {
+                double bdxU_total = bdxU + beta_dx_sum;
+                NextU[curr] += bdxU_total * U[iMinus+j];
+                NextV[curr] += bdxU_total * V[iMinus+j];
+            }
+            if (j < Nyr-1) {
+                NextU[curr] += beta_dy_2 * U[curr+1];
+                NextV[curr] += beta_dy_2 * V[curr+1];
+            }
+            if (j > 0) {
+                double bdyV_total = bdyV + beta_dy_sum;
+                NextU[curr] += bdyV_total * U[curr-1];
+                NextV[curr] += bdyV_total * V[curr-1];
+            }
         }
     }
 
-    return NextVel;
+    for (int k = 0; k < Nyr*Nxr; k++) {
+        NextU[k] += U[k];
+        NextV[k] += V[k];
+    }
 }
 
 /**
- * @brief Private helper function that sets matrix coefficients for differentials
+ * @brief Wraps a column-major 1D pointer into a pre-allocated row-major 2D pointer
+ * @param A 1D pointer in column-major format
+ * @param Nxr Nxr
+ * @param Nyr Nyr
+ * @param res 2D pointer pre-allocated with memory
  * */
-void Burgers::SetMatrixCoefficients() {
-    /// Get model parameters
-    int Ny = model->GetNy();
-    int Nx = model->GetNx();
-
-    /// Reduced parameters
-    int Nyr = Ny - 2;
-    int Nxr = Nx - 2;
-
-    /// Burger constants
-    double alpha_dx_2 = model->GetAlphaDx_2();
-    double beta_dx_2 = model->GetBetaDx_2();
-    double alpha_dy_2 = model->GetAlphaDy_2();
-    double beta_dy_2 = model->GetBetaDy_2();
-    double alpha_dx_1 = model->GetAlphaDx_1();
-    double beta_dx_1 = model->GetBetaDx_1();
-    double alpha_dy_1 = model->GetAlphaDy_1();
-    double beta_dy_1 = model->GetBetaDy_1();
-
-    /// Set coefficients (alpha along the LD)
-    GenSymmBanded(alpha_dx_2, beta_dx_2, Nxr, dVel_dx_2_coeffs);
-    GenSymmBanded(alpha_dy_2, beta_dy_2, Nyr, dVel_dy_2_coeffs);
-    GenTrmmBanded(alpha_dx_1, beta_dx_1, Nxr, dVel_dx_coeffs);
-    GenTrmmBanded(alpha_dy_1, beta_dy_1, Nyr, dVel_dy_coeffs);
-}
-
-/**
- * @brief Private helper function computing R for SetInitialVelocity()
- * @param x real x distance to origin
- * @param y real y distance to origin
- * */
-double Burgers::ComputeR(double x, double y) {
-    double r = pow(x*x+y*y, 0.5);
-    return r;
+void Burgers::wrap(double* A, int Nyr, int Nxr, double** res) {
+    for (int i = 0; i < Nyr*Nxr; i++) {
+        int col = i / Nyr; // divisor result
+        int row = i % Nyr; // remainder after division
+        res[row][col] = A[i];
+    }
 }

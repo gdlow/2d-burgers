@@ -14,6 +14,12 @@ double F77NAME(dcopy)(
         const double *y, const int& incy
 );
 
+void F77NAME(daxpy)(
+        const int& n, const double& alpha,
+        const double *x,const int& incx,
+        const double *y, const int& incy
+);
+
 /* Level 2 functions */
 void F77NAME(dgbmv)(
         const char& trans, const int& m,

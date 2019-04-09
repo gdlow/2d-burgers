@@ -44,7 +44,7 @@ Model::~Model() {
 
 /**
  * @brief Parses parameters from command line into program
- * @brief Throws an exception if invalid number of arguments are supplied
+ * Throws an exception if invalid number of arguments are supplied
  * */
 void Model::ParseParameters(int argc, char **argv) {
     if (argc == 10) {
@@ -97,9 +97,9 @@ void Model::ValidateParameters() {
  * @brief Set appropriate values for various members
  * */
 void Model::SetNumerics() {
-    Nx = 501;
-    Ny = 501;
-    Nt = 501;
+    Nx = 2001;
+    Ny = 2001;
+    Nt = 4001;
     /// dx,dy and dt are dependent on L,T and Nx,Ny,Nt:
     dx = Lx / (Nx-1);
     dy = Ly / (Ny-1);
@@ -110,15 +110,26 @@ void Model::SetNumerics() {
     /// b/dx and b/dy saves computation time in the future
     bdx = b/dx;
     bdy = b/dy;
-    /// alpha and beta used for BLAS routines
-    alpha_dx_2 = (-2.0*c)/pow(dx,2.0);
-    alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
+    /// constants used in SetIntegratedVelocity()
+    double alpha_dx_2 = (-2.0*c)/pow(dx,2.0);
+    double alpha_dy_2 = (-2.0*c)/pow(dy,2.0);
+    double alpha_dx_1 = -ax/dx;
+    double alpha_dy_1 = -ay/dy;
+    double beta_dx_1 = ax/dx;
+    double beta_dy_1 = ay/dy;
     beta_dx_2 = c/pow(dx,2.0);
     beta_dy_2 = c/pow(dy,2.0);
-    alpha_dx_1 = ax/dx;
-    alpha_dy_1 = ay/dy;
-    beta_dx_1 = -ax/dx;
-    beta_dy_1 = -ay/dy;
+    alpha_sum = alpha_dx_1 + alpha_dx_2 + alpha_dy_1 + alpha_dy_2;
+    beta_dx_sum = beta_dx_1 + beta_dx_2;
+    beta_dy_sum = beta_dy_1 + beta_dy_2;
+    /// multiply by dt for pre-computational purposes
+    bdx *= dt;
+    bdy *= dt;
+    alpha_sum *= dt;
+    beta_dx_sum *= dt;
+    beta_dy_sum *= dt;
+    beta_dx_2 *= dt;
+    beta_dy_2 *= dt;
 }
 
 /**

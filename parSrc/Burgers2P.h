@@ -19,10 +19,11 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    void SetMatrixCoefficients();
-    double* NextVelocityState(bool U_OR_V);
-    void SetCaches(double* Vel);
-    void UpdateBoundsLinear(double* dVel_2, double* dVel);
+
+    void GetNextVelocities();
+    void ComputeNextVelocityState();
+    void FixNextVelocityBoundaries();
+    void SetCaches();
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
     void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
@@ -31,25 +32,28 @@ private:
     Model* model;
     double* U;
     double* V;
-    double* dVel_dx_2_coeffs;
-    double* dVel_dy_2_coeffs;
-    double* dVel_dx_coeffs;
-    double* dVel_dy_coeffs;
+    double* NextU;
+    double* NextV;
     double E;
 
-    /// Term arrays
-    double* dVel_2;
-    double* dVel;
-
     /// Caches for partitioning matrix
-    double* upVel;
-    double* downVel;
-    double* leftVel;
-    double* rightVel;
-    double* myUpVel;
-    double* myDownVel;
-    double* myLeftVel;
-    double* myRightVel;
+    double* upU;
+    double* downU;
+    double* leftU;
+    double* rightU;
+    double* myUpU;
+    double* myDownU;
+    double* myLeftU;
+    double* myRightU;
+
+    double* upV;
+    double* downV;
+    double* leftV;
+    double* rightV;
+    double* myUpV;
+    double* myDownV;
+    double* myLeftV;
+    double* myRightV;
 
     /// MPI Requests and Statuses
     MPI_Request* reqs;

@@ -1,18 +1,18 @@
 # Compilers and flags
 CXX = mpicxx
-CXXFLAGS = -std=c++11 -Wall -O2
+CXXFLAGS = -std=c++11 -Wall -O3
 LDLIBS = -lblas
 
 # Serial variables
 DIR_SER = serSrc
-HDRS_SER = Burgers.h Model.h Helpers.h
-SRC_SER = serialEntryPoint.cpp Burgers.cpp Model.cpp Helpers.cpp
+HDRS_SER = Burgers.h Model.h
+SRC_SER = serialEntryPoint.cpp Burgers.cpp Model.cpp
 OBJS_SER = $(addprefix $(DIR_SER)/,$(SRC_SER:.cpp=.o))
 
 # Parallel variables
 DIR_PAR = parSrc
-HDRS_PAR = Burgers2P.h Model2P.h Helpers.h
-SRC_PAR = parallelEntryPoint.cpp Burgers2P.cpp Model2P.cpp Helpers.cpp
+HDRS_PAR = Burgers2P.h Model2P.h
+SRC_PAR = parallelEntryPoint.cpp Burgers2P.cpp Model2P.cpp
 OBJS_PAR = $(addprefix $(DIR_PAR)/,$(SRC_PAR:.cpp=.o))
 
 # Build serial code
@@ -56,7 +56,7 @@ burgp: compilep
 	mpiexec -np 2 ./compilep 1.0 0.5 1.0 0.02 10 10 1 2 1
 
 report: compilep
-	mpiexec --hostfile hostfile -np 100 ./compilep 1.0 0.5 1.0 0.02 10 10 1 10 10
+	mpiexec -np 12 ./compilep 1.0 0.5 1.0 0.02 10 10 1 3 4
 
 # Misc
 default: compile

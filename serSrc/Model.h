@@ -34,14 +34,11 @@ public:
     double GetC()      const { return c; }
     double GetBDx()    const { return bdx; }
     double GetBDy()    const { return bdy; }
-    double GetAlphaDx_1() const { return alpha_dx_1; }
-    double GetAlphaDy_1() const { return alpha_dy_1; }
-    double GetAlphaDx_2() const { return alpha_dx_2; }
-    double GetAlphaDy_2() const { return alpha_dy_2; }
-    double GetBetaDx_1() const { return beta_dx_1; }
-    double GetBetaDy_1() const { return beta_dy_1; }
     double GetBetaDx_2() const { return beta_dx_2; }
     double GetBetaDy_2() const { return beta_dy_2; }
+    double GetBetaDx_Sum() const { return beta_dx_sum; }
+    double GetBetaDy_Sum() const { return beta_dy_sum; }
+    double GetAlpha_Sum() const { return alpha_sum; }
 
     // Add any other getters here...
 
@@ -81,14 +78,12 @@ private:
     /// Constants for Burger problem
     double bdx;
     double bdy;
-    double alpha_dx_2;
+
     double beta_dx_2;
-    double alpha_dx_1;
-    double beta_dx_1;
-    double alpha_dy_2;
     double beta_dy_2;
-    double alpha_dy_1;
-    double beta_dy_1;
+    double beta_dy_sum;
+    double beta_dx_sum;
+    double alpha_sum;
 
     // Add any additional parameters here...
 };
