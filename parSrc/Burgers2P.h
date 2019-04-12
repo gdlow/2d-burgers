@@ -19,11 +19,9 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-
-    void GetNextVelocities();
-    void ComputeNextVelocityState();
-    void FixNextVelocityBoundaries();
-    void SetCaches();
+    void GetNextU(double* NextVel);
+    void GetNextV(double* NextVel);
+    void SetCaches(double* Vel);
     double CalculateEnergyState(double* Ui, double* Vi);
     void AssembleMatrix(double* Vel, double** M);
     void WriteOf(double* Vel, double** M, std::ofstream &of, char id);
@@ -37,23 +35,14 @@ private:
     double E;
 
     /// Caches for partitioning matrix
-    double* upU;
-    double* downU;
-    double* leftU;
-    double* rightU;
-    double* myUpU;
-    double* myDownU;
-    double* myLeftU;
-    double* myRightU;
-
-    double* upV;
-    double* downV;
-    double* leftV;
-    double* rightV;
-    double* myUpV;
-    double* myDownV;
-    double* myLeftV;
-    double* myRightV;
+    double* upVel;
+    double* downVel;
+    double* leftVel;
+    double* rightVel;
+    double* myUpVel;
+    double* myDownVel;
+    double* myLeftVel;
+    double* myRightVel;
 
     /// MPI Requests and Statuses
     MPI_Request* reqs;

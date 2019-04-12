@@ -79,7 +79,8 @@ void Burgers::SetIntegratedVelocity() {
     double* temp = nullptr;
     /// Compute U, V for every step k
     for (int k = 0; k < Nt-1; k++) {
-        ComputeNextVelocityState();
+        GetNextU(NextU);
+         GetNextV(NextV);
         temp = NextU;
         NextU = U;
         U = temp;
@@ -171,13 +172,21 @@ void Burgers::SetEnergy() {
     E = 0.5 * (ddotU + ddotV) * dx*dy;
 }
 
+
 /**
- * @brief Computes linear and non-linear terms for U and V
+ * @brief Private helper function that computes and returns next velocity state based on previous inputs
  * */
-void Burgers::ComputeNextVelocityState() {
+void Burgers::GetNextU(double* NextVel) {
     /// Get model parameters
-    int Nyr = model->GetNy() - 2;
-    int Nxr = model->GetNx() - 2;
+    int Nyr = model->GetNy()-2;
+    int Nxr = model->GetNx()-2;
+    int NyrNxr = Nyr*Nxr;
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+
+    /// Set aliases for computation
+    double* Vel = U;
+    double* Other = V;
 
     /// Compute first, second derivatives, & non-linear terms
     double alpha_sum = model->GetAlpha_Sum();
@@ -185,49 +194,69 @@ void Burgers::ComputeNextVelocityState() {
     double beta_dy_sum = model->GetBetaDy_Sum();
     double beta_dx_2 = model->GetBetaDx_2();
     double beta_dy_2 = model->GetBetaDy_2();
-    double bdx = model->GetBDx();
-    double bdy = model->GetBDy();
 
-    /// Pointers to row shifts in U,V
-    int iPlus, iMinus;
-    double bdxU, bdyV;
+    double* Vel_iMinus = nullptr;
+    double* Vel_iPlus = nullptr;
+    double nonLinVel, nonLinOther;
     for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
         int start = i*Nyr;
-        iMinus = (i-1)*Nyr;
-        iPlus = (i+1)*Nyr;
         for (int j = 0; j < Nyr; j++) {
             int curr = start + j;
-            bdxU = bdx * U[curr];
-            bdyV = bdy * V[curr];
-
-            double alpha_total = alpha_sum - bdxU - bdyV;
-            NextU[curr] = alpha_total * U[curr];
-            NextV[curr] = alpha_total * V[curr];
-            if (i < Nxr-1) {
-                NextU[curr] += beta_dx_2 * U[iPlus+j];
-                NextV[curr] += beta_dx_2 * V[iPlus+j];
-            }
-            if (i > 0) {
-                double bdxU_total = bdxU + beta_dx_sum;
-                NextU[curr] += bdxU_total * U[iMinus+j];
-                NextV[curr] += bdxU_total * V[iMinus+j];
-            }
-            if (j < Nyr-1) {
-                NextU[curr] += beta_dy_2 * U[curr+1];
-                NextV[curr] += beta_dy_2 * V[curr+1];
-            }
-            if (j > 0) {
-                double bdyV_total = bdyV + beta_dy_sum;
-                NextU[curr] += bdyV_total * U[curr-1];
-                NextV[curr] += bdyV_total * V[curr-1];
-            }
+            nonLinVel = bdx*Vel[curr]; nonLinOther = bdy*Other[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinVel + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinOther + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
         }
     }
 
-    for (int k = 0; k < Nyr*Nxr; k++) {
-        NextU[k] += U[k];
-        NextV[k] += V[k];
+    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
+}
+
+/**
+ * @brief Private helper function that computes and returns next velocity state based on previous inputs
+ * */
+void Burgers::GetNextV(double* NextVel) {
+    /// Get model parameters
+    int Nyr = model->GetNy()-2;
+    int Nxr = model->GetNx()-2;
+    int NyrNxr = Nyr*Nxr;
+    double bdx = model->GetBDx();
+    double bdy = model->GetBDy();
+
+    /// Set aliases for computation
+    double* Vel = V;
+    double* Other = U;
+
+    /// Compute first, second derivatives, & non-linear terms
+    double alpha_sum = model->GetAlpha_Sum();
+    double beta_dx_sum = model->GetBetaDx_Sum();
+    double beta_dy_sum = model->GetBetaDy_Sum();
+    double beta_dx_2 = model->GetBetaDx_2();
+    double beta_dy_2 = model->GetBetaDy_2();
+
+    double* Vel_iMinus = nullptr;
+    double* Vel_iPlus = nullptr;
+    double nonLinVel, nonLinOther;
+    for (int i = 0; i < Nxr; i++) {
+        if (i > 0) Vel_iMinus = &(Vel[(i-1)*Nyr]);
+        if (i < Nxr-1) Vel_iPlus = &(Vel[(i+1)*Nyr]);
+        int start = i*Nyr;
+        for (int j = 0; j < Nyr; j++) {
+            int curr = start + j;
+            nonLinVel = bdy*Vel[curr]; nonLinOther = bdx*Other[curr];
+            NextVel[curr] = (alpha_sum - nonLinVel - nonLinOther) * Vel[curr];
+            NextVel[curr] = (i>0)? NextVel[curr] + (nonLinOther + beta_dx_sum) * Vel_iMinus[j] : NextVel[curr];
+            NextVel[curr] = (j>0)? NextVel[curr] + (nonLinVel + beta_dy_sum) * Vel[curr-1] : NextVel[curr];
+            NextVel[curr] = (i<Nxr-1)? NextVel[curr] + beta_dx_2 * Vel_iPlus[j] : NextVel[curr];
+            NextVel[curr] = (j<Nyr-1)? NextVel[curr] + beta_dy_2 * Vel[curr+1] : NextVel[curr];
+        }
     }
+
+    F77NAME(daxpy)(NyrNxr, 1.0, Vel, 1, NextVel, 1);
 }
 
 /**
