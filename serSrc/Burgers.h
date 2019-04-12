@@ -18,8 +18,7 @@ public:
     void SetEnergy();
     double GetE()     const { return E; }
 private:
-    void GetNextU(double* NextVel);
-    void GetNextV(double* NextVel);
+    void ComputeNextVelocityState();
     void wrap(double* A, int Nyr, int Nxr, double** res);
 
     /// Burger parameters
